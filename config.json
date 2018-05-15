@@ -1,0 +1,12 @@
+{
+  "name": "IRB Lookup",
+  "namespace": "Stanford\\IRB",
+  "description": "This is a utility EM to facilitate IRB lookups",
+  "authors": [
+    {
+      "name": "Andy Martin",
+      "email": "andy123@stanford.edu",
+      "institution": "Stanford University"
+    }
+  ]
+}
