@@ -7,6 +7,71 @@
       "name": "Andy Martin",
       "email": "andy123@stanford.edu",
       "institution": "Stanford University"
+    },
+    {
+      "name": "Susan Weber",
+      "email": "scweber@stanford.edu",
+      "institution": "Stanford University"
+    },
+    {
+      "name": "Lee Ann Yasukawa",
+      "email": "yasukawa@stanford.edu",
+      "institution": "Stanford University"
     }
+  ],
+
+  "permissions": [
+  ],
+
+  "links": {
+    "control-center": [
+    ],
+    "project": [
+    ]
+  },
+
+  "no-auth-pages": [
+  ],
+
+  "system-settings": [
+    {
+      "key": "log_path",
+      "name": "<b>Full server path to log file</b>",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "key": "irb_url",
+      "name": "<b>API Endpoint URL</b>",
+      "required": true,
+      "type": "text"
+    },
+    {
+      "key": "irb_refresh_url",
+      "name": "<b>API Refresh Token Endpoint URL</b>",
+      "required": true,
+      "type": "text"
+    },
+    {
+      "key": "irb_validity_token",
+      "name": "<b>IRB Validity token</b>",
+      "required": true,
+      "type": "text"
+    },
+    {
+      "key": "irb_refresh_token",
+      "name": "<b>IRB Refresh token</b>",
+      "required": true,
+      "type": "text"
+    },
+    {
+      "key": "irb_token_expiration_date",
+      "name": "<b>Date the token expires</b>",
+      "required": true,
+      "type": "text"
+    }
+  ],
+
+  "project-settings": [
   ]
 }
