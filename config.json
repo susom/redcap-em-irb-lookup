@@ -1,7 +1,7 @@
 {
-  "name": "IRB Lookup",
+  "name": "IRB Validity Lookup",
   "namespace": "Stanford\\IRB",
-  "description": "This is a utility EM to facilitate IRB lookups",
+  "description": "This is a utility EM to retrieve IRB Status given an IRB number",
   "authors": [
     {
       "name": "Andy Martin",
@@ -42,31 +42,7 @@
     },
     {
       "key": "irb_url",
-      "name": "<b>API Endpoint URL</b>",
-      "required": true,
-      "type": "text"
-    },
-    {
-      "key": "irb_refresh_url",
-      "name": "<b>API Refresh Token Endpoint URL</b>",
-      "required": true,
-      "type": "text"
-    },
-    {
-      "key": "irb_validity_token",
-      "name": "<b>IRB Validity token</b>",
-      "required": true,
-      "type": "text"
-    },
-    {
-      "key": "irb_refresh_token",
-      "name": "<b>IRB Refresh token</b>",
-      "required": true,
-      "type": "text"
-    },
-    {
-      "key": "irb_token_expiration_date",
-      "name": "<b>Date the token expires</b>",
+      "name": "<b>API IRB Endpoint URL</b>",
       "required": true,
       "type": "text"
     }
