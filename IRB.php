@@ -18,22 +18,22 @@ class IRB extends \ExternalModules\AbstractExternalModule
         parent::__construct();
     }
 
-    function log() {
+    function emLog() {
         $emLogger = \ExternalModules\ExternalModules::getModuleInstance('em_logger');
-        $emLogger->log($this->PREFIX, func_get_args(), "INFO");
+        $emLogger->emLog($this->PREFIX, func_get_args(), "INFO");
     }
 
-    function debug() {
+    function emDebug() {
         // Check if debug enabled
         if ($this->getSystemSetting('enable-system-debug-logging') || $this->getProjectSetting('enable-project-debug-logging')) {
             $emLogger = \ExternalModules\ExternalModules::getModuleInstance('em_logger');
-            $emLogger->log($this->PREFIX, func_get_args(), "DEBUG");
+            $emLogger->emLog($this->PREFIX, func_get_args(), "DEBUG");
         }
     }
 
-    function error() {
+    function emError() {
         $emLogger = \ExternalModules\ExternalModules::getModuleInstance('em_logger');
-        $emLogger->log($this->PREFIX, func_get_args(), "ERROR");
+        $emLogger->emLog($this->PREFIX, func_get_args(), "ERROR");
     }
 
     // This will only return true or false depending on whether or not the IRB is valid.
@@ -69,32 +69,88 @@ class IRB extends \ExternalModules\AbstractExternalModule
         }
     }
 
-    private function IRBStatus($irb_number, $pid)
-    {
+    public function getIRBNumsBySunetID($sunet_id) {
+        if (is_null($sunet_id)) {
+            $this->emLog("Status is being requested for sunetID " . $sunet_id);
+        } else {
+            $this->emLog("Redcap user $sunet_id is requesting IRB numbers");
+        }
+
+        $token = $this->getIRBToken();
+
+        $header = array("Authorization: Bearer " . $token);
+        $api_url = $this->getSystemSetting("irb_url_num") . $sunet_id;
+        $response = http_get($api_url, 10, "", $header);
+        if ($response == false) {
+            $this->emLog("Error calling IRB Validity API for user" . $sunet_id);
+            return false;
+        } else {
+            $this->emLog("Successfully retrieved IRB Status for user: " . $sunet_id);
+            $jsonResponse = json_decode($response, true);
+            $response = $jsonResponse["protocols"];
+            return $response;
+        }
+
+    }
+
+    public function getIRBAllBySunetID($sunet_id) {
+        if (is_null($sunet_id)) {
+            $this->emLog("Status is being requested for user " . $sunet_id);
+        } else {
+            $this->emLog("Redcap user $sunet_id is requesting status for IRBs");
+        }
+
+        $token = $this->getIRBToken();
+
+        $header = array("Authorization: Bearer " . $token);
+        $api_url = $this->getSystemSetting("irb_url_all") . $sunet_id;
+        $response = http_get($api_url, 10, "", $header);
+        if ($response == false) {
+            $this->emLog("Error calling IRB Validity API for user " . $sunet_id);
+            return false;
+        } else {
+            $this->emLog("Successfully retrieved IRB Status for user: " . $sunet_id);
+            $jsonResponse = json_decode($response, true);
+            $responseArray = $jsonResponse["protocols"];
+
+            return $responseArray;
+        }
+
+    }
+
+    private function getIRBToken() {
         // Log this request
         $service = "irb";
-        if (is_null($pid)) {
-            $this->log("Status is being requested for IRB " . $irb_number);
-        } else {
-            $this->log("Redcap project $pid is requesting status for IRB " . $irb_number);
-        }
 
         // Get a valid API token from the vertx token manager
         $VTM = \ExternalModules\ExternalModules::getModuleInstance('vertx_token_manager');
         $token = $VTM->findValidToken($service);
         if ($token == false) {
-            $this->error("Could not retrieve valid IRB token for project $pid and IRB $irb_number");
+            $this->emError("Could not retrieve valid IRB token for service $service");
             return false;
+        } else {
+            return $token;
         }
+    }
+
+    private function IRBStatus($irb_number, $pid)
+    {
+        if (is_null($pid)) {
+            $this->emLog("Status is being requested for IRB " . $irb_number);
+        } else {
+            $this->emLog("Redcap project $pid is requesting status for IRB " . $irb_number);
+        }
+
+        $token = $this->getIRBToken();
 
         $header = array("Authorization: Bearer " . $token);
         $api_url = $this->getSystemSetting("irb_url") . $irb_number;
         $response = http_get($api_url, 10, "", $header);
         if ($response == false) {
-            $this->log("Error calling IRB Validity API for project ID " . $pid . " and IRB " . $irb_number);
+            $this->emLog("Error calling IRB Validity API for project ID " . $pid . " and IRB " . $irb_number);
             return false;
         } else {
-            $this->log("Successfully retrieved IRB Status for project ID: " . $pid);
+            $this->emLog("Successfully retrieved IRB Status for project ID: " . $pid);
             $jsonResponse = json_decode($response, true);
             $response = $jsonResponse["protocols"][0];
             return $response;

@@ -45,6 +45,18 @@
       "name": "<b>API IRB Endpoint URL</b>",
       "required": true,
       "type": "text"
+    },
+    {
+      "key": "irb_url_num",
+      "name": "<b>API IRB Number Endpoint URL</b>",
+      "required": true,
+      "type": "text"
+    },
+    {
+      "key": "irb_url_all",
+      "name": "<b>API IRB All Endpoint URL</b>",
+      "required": true,
+      "type": "text"
     }
   ],
 
