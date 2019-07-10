@@ -35,10 +35,10 @@
 
   "system-settings": [
     {
-      "key": "log_path",
-      "name": "<b>Full server path to log file</b>",
+      "key": "enable-system-debug-logging",
+      "name": "<b>Enable Debug Logging</b><br>If you have the Stanford emLogger external module installed and configured, you can enable additional debug-level logging through this checkbox</b>",
       "required": false,
-      "type": "text"
+      "type": "checkbox"
     },
     {
       "key": "irb_url",
@@ -57,6 +57,30 @@
       "name": "<b>API IRB All Endpoint URL</b>",
       "required": true,
       "type": "text"
+    },
+    {
+      "key": "new_privacy_event_id",
+      "name": "<b>Event ID of New Privacy Report</b>",
+      "required": true,
+      "type": "event-id"
+    },
+    {
+      "key": "new_privacy_pid",
+      "name": "<b>Project ID of New Privacy Report</b>",
+      "required": true,
+      "type": "project-id"
+    },
+    {
+      "key": "old_privacy_pid",
+      "name": "<b>Project ID of 2017 and previous Privacy Report</b>",
+      "required": true,
+      "type": "project-id"
+    },
+    {
+      "key": "old_privacy_event_id",
+      "name": "<b>Event ID of 2017 and previous Privacy Report</b>",
+      "required": true,
+      "type": "event-id"
     }
   ],
 
