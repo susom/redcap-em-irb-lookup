@@ -231,6 +231,26 @@ class IRB extends \ExternalModules\AbstractExternalModule
     }
 
     /**
+     * This is a helper function that will retrieve the IRB Number from the project setup page.
+     *
+     * @param $pid - REDCap project number
+     * @return null - if the project does not have an IRB number entered
+     *         integer - IRB Number if entered in the Project
+     */
+    public function findIRBNumber($pid) {
+        // Find the IRB number for this project
+        // Check to make sure pid is an int
+        $query = "select project_irb_number from redcap_projects where project_id = " . intval($pid);
+        $q = db_query($query);
+        $results = db_fetch_row($q);
+        if (is_null($results) or empty($results)) {
+            return null;
+        } else {
+            return $results[0];
+        }
+    }
+
+    /**
      * This function makes a call to the vertx token manager to retrieve a current token for the IRB
      * API call.  The vertx token manager will refresh the token if it is invalid so we expect the returned
      * token to be valid.
@@ -340,56 +360,91 @@ class IRB extends \ExternalModules\AbstractExternalModule
             // Convert the format to be the same as the old Privacy Report
             $full_name  = (($privacy_record["d_full_name"][1] === '1')or
                 ($privacy_record["d_full_name"][2] === '1') or
-                ($privacy_record["d_full_name"][3] === '1') ? "1" : "0");
+                ($privacy_record["d_full_name"][3] === '1') ? '1' : '0');
+            $ssn  = (($privacy_record["d_ssn"][1] === '1') or
+                ($privacy_record["d_ssn"][2] === '1') or
+                ($privacy_record["d_ssn"][3] === '1') ? '1' : '0');
             $phone      = (($privacy_record["d_telephone"][1] === '1') or
                 ($privacy_record["d_telephone"][2] === '1') or
-                ($privacy_record["d_telephone"][3] === '1') ? "1" : "0");
+                ($privacy_record["d_telephone"][3] === '1') ? '1' : '0');
             $geography  = (($privacy_record["d_geographic"][1] === '1') or
                 ($privacy_record["d_geographic"][2] === '1') or
-                ($privacy_record["d_geographic"][3] === '1') ? "1" : "0");
+                ($privacy_record["d_geographic"][3] === '1') ? '1' : '0');
             $dates      = (($privacy_record["d_dates"][1] === '1') or
                 ($privacy_record["d_dates"][2] === '1') or
-                ($privacy_record["d_dates"][3] === '1') ? "1" : "0");
+                ($privacy_record["d_dates"][3] === '1') ? '1' : '0');
+            $fax      = (($privacy_record["d_fax"][1] === '1') or
+                ($privacy_record["d_fax"][2] === '1') or
+                ($privacy_record["d_fax"][3] === '1') ? '1' : '0');
             $email      = (($privacy_record["d_email"][1] === '1') or
                 ($privacy_record["d_email"][2] === '1') or
-                ($privacy_record["d_email"][3] === '1') ? "1" : "0");
+                ($privacy_record["d_email"][3] === '1') ? '1' : '0');
             $mrn        = (($privacy_record["d_mrn"][1] === '1') or
                 ($privacy_record["d_mrn"][2] === '1') or
-                ($privacy_record["d_mrn"][3] === '1') ? "1" : "0");
-            $insurance  = (($privacy_record["d_insurance_num"][1] === '1') or
+                ($privacy_record["d_mrn"][3] === '1') ? '1' : '0');
+            $health  = (($privacy_record["d_beneficiary_num"][1] === '1') or
+                ($privacy_record["d_beneficiary_num"][2] === '1') or
+                ($privacy_record["d_beneficiary_num"][3] === '1') ? '1' : '0');
+            $accounts  = (($privacy_record["d_insurance_num"][1] === '1') or
                 ($privacy_record["d_insurance_num"][2] === '1') or
-                ($privacy_record["d_insurance_num"][3] === '1') ? "1" : "0");
+                ($privacy_record["d_insurance_num"][3] === '1') ? '1' : '0');
+            $license  = (($privacy_record["d_certificate_num"][1] === '1') or
+                ($privacy_record["d_certificate_num"][2] === '1') or
+                ($privacy_record["d_certificate_num"][3] === '1') ? '1' : '0');
+            $deviceids  = (($privacy_record["d_device_num"][1] === '1') or
+                ($privacy_record["d_device_num"][2] === '1') or
+                ($privacy_record["d_device_num"][3] === '1') ? '1' : '0');
+            $other  = (($privacy_record["d_other_phi"][1] === '1') or
+                ($privacy_record["d_other_phi"][2] === '1') or
+                ($privacy_record["d_other_phi"][3] === '1') ? '1' : '0');
+            $photos  = (($privacy_record["d_identifying_image"][1] === '1') or
+                ($privacy_record["d_identifying_image"][2] === '1') or
+                ($privacy_record["d_identifying_image"][3] === '1') ? '1' : '0');
+            $weburls  = (($privacy_record["d_urls"][1] === '1') or
+                ($privacy_record["d_urls"][2] === '1') or
+                ($privacy_record["d_urls"][3] === '1') ? '1' : '0');
             $labs       = (($privacy_record["d_lab_results"][1] === '1') or
                 ($privacy_record["d_lab_results"][2] === '1') or
-                ($privacy_record["d_lab_results"][3] === '1') ? "1" : "0");
+                ($privacy_record["d_lab_results"][3] === '1') ? '1' : '0');
             $billing    = (($privacy_record["d_diag_proc"][1] === '1') or
                 ($privacy_record["d_diag_proc"][2] === '1') or
-                ($privacy_record["d_diag_proc"][3] === '1') ? "1" : "0");
+                ($privacy_record["d_diag_proc"][3] === '1') ? '1' : '0');
             $medications   = (($privacy_record["d_medications"][1] === '1') or
                 ($privacy_record["d_medications"][2] === '1') or
-                ($privacy_record["d_medications"][3] === '1') ? "1" : "0");
+                ($privacy_record["d_medications"][3] === '1') ? '1' : '0');
             $nonPhi     = (($privacy_record["d_demographics"][1] === '1') or
                 ($privacy_record["d_demographics"][2] === '1') or
-                ($privacy_record["d_demographics"][3] === '1') ? "1" : "0");
-            $phi =  ((($full_name == "1") or ($phone == "1") or ($geography == "1") or ($dates == "1") or
-                ($email == "1") or ($mrn == "1") or ($insurance == "1")) ? "1" : "0");
+                ($privacy_record["d_demographics"][3] === '1') ? '1' : '0');
+            $phi =  ((($full_name == '1') or ($ssn == '1') or ($phone == '1') or ($geography == '1') or ($dates == '1') or
+                      ($fax == '1') or ($email == '1') or ($mrn == '1') or ($health == '1') or ($accounts == '1') or
+                      ($license == '1') or ($deviceids == '1') or ($other == '1') or ($photos == '1') or ($weburls == '1')
+                     ) ? '1' : '0');
 
             $privacy = array(
                 "approved"          => $privacy_record["approved"],
-                "lab_results"       => $labs,
-                "billing_codes"     => $billing,
-                "medications"       => $medications,
-                "demographic"       => array("nonphi"       => $nonPhi,
-                                             "phi"          => $phi,
+                "lab_results"       => "$labs",
+                "billing_codes"     => "$billing",
+                "medications"       => "$medications",
+                "demographic"       => array("nonphi"       => "$nonPhi",
+                                             "phi"          => "$phi",
                                              "phi_approved" => array(
-                                                                "fullname"      => $full_name,
-                                                                "phone"         => $phone,
-                                                                "geography"     => $geography,
-                                                                "dates"         => $dates,
-                                                                "email"         => $email,
-                                                                "mrn"           => $mrn,
-                                                                "insurance"     => $insurance
-                                                                )
+                                                    "fullname"      => "$full_name",
+                                                    "ssn"           => "$ssn",
+                                                    "phone"         => "$phone",
+                                                    "geography"     => "$geography",
+                                                    "dates"         => "$dates",
+                                                    "fax"           => "$fax",
+                                                    "email"         => "$email",
+                                                    "mrn"           => "$mrn",
+                                                    "insurance"     => "$health",
+                                                    "accounts"      => "$accounts",
+                                                    "license"       => "$license",
+                                                    "deviceids"     => "$deviceids",
+                                                    "biometric"     => "0",
+                                                    "photos"        => "$photos",
+                                                    "other"         => "$other",
+                                                    "web_urls"      => "$weburls"
+                                                    )
                                             )
            );
 
@@ -410,19 +465,28 @@ class IRB extends \ExternalModules\AbstractExternalModule
             $this->emDebug("Found privacy approval for IRB " . $irb_num . " in Privacy Project $old_privacy_pid in record " . $privacy_record_id);
             $privacy = array(
                 "approved"          => $privacy_record["approved"],
-                "lab_results"       => ($privacy_record["lab_results"]["1"] === "1" ? 1: 0),
-                "billing_codes"     => ($privacy_record["billing_codes"]["1"] === "1" ? 1: 0),
-                "medications"       => ($privacy_record["clinical_records"]["1"] === "1" ? 1: 0),
-                "demographic"       => array("nonphi"       => ($privacy_record["demographic"]["1"] === "1" ? 1: 0),
-                                             "phi"          => ($privacy_record["demographic"]["2"] === "1" ? 1: 0),
+                "lab_results"       => ($privacy_record["lab_results"]["1"] === "1" ? '1': '0'),
+                "billing_codes"     => ($privacy_record["billing_codes"]["1"] === "1" ? '1': '0'),
+                "medications"       => ($privacy_record["clinical_records"]["1"] === "1" ? '1': '0'),
+                "demographic"       => array("nonphi"       => ($privacy_record["demographic"]["1"] === "1" ? '1': '0'),
+                                             "phi"          => ($privacy_record["demographic"]["2"] === "1" ? '1': '0'),
                                              "phi_approved" => array(
-                                                    "fullname"      => ($privacy_record["phi"]["1"] === "1" ? 1: 0),
-                                                    "phone"         => ($privacy_record["phi"]["3"] === "1" ? 1: 0),
-                                                    "geography"     => ($privacy_record["phi"]["4"] === "1" ? 1: 0),
-                                                    "dates"         => ($privacy_record["phi"]["5"] === "1" ? 1: 0),
-                                                    "email"         => ($privacy_record["phi"]["7"] === "1" ? 1: 0),
-                                                    "mrn"           => ($privacy_record["phi"]["8"] === "1" ? 1: 0),
-                                                    "insurance"     => ($privacy_record["phi"]["9"] === "1" ? 1: 0)
+                                                    "fullname"      => ($privacy_record["phi"]["1"] === "1" ? '1': '0'),
+                                                    "ssn"           => ($privacy_record["phi"]["2"] === "1" ? '1': '0'),
+                                                    "phone"         => ($privacy_record["phi"]["3"] === "1" ? '1': '0'),
+                                                    "geography"     => ($privacy_record["phi"]["4"] === "1" ? '1': '0'),
+                                                    "dates"         => ($privacy_record["phi"]["5"] === "1" ? '1': '0'),
+                                                    "fax"           => ($privacy_record["phi"]["6"] === "1" ? '1': '0'),
+                                                    "email"         => ($privacy_record["phi"]["7"] === "1" ? '1': '0'),
+                                                    "mrn"           => ($privacy_record["phi"]["8"] === "1" ? '1': '0'),
+                                                    "insurance"     => ($privacy_record["phi"]["9"] === "1" ? '1': '0'),
+                                                    "accounts"      => ($privacy_record["phi"]["10"] === "1" ? '1': '0'),
+                                                    "license"       => ($privacy_record["phi"]["11"] === "1" ? '1': '0'),
+                                                    "deviceids"     => ($privacy_record["phi"]["13"] === "1" ? '1': '0'),
+                                                    "biometric"     => ($privacy_record["phi"]["16"] === "1" ? '1': '0'),
+                                                    "photos"        => ($privacy_record["phi"]["17"] === "1" ? '1': '0'),
+                                                    "other"         => ($privacy_record["phi"]["18"] === "1" ? '1': '0'),
+                                                    "web_urls"      => '0'
                                             )
                 )
             );
