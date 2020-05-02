@@ -7,17 +7,24 @@ There are currently 5 IRB functions which will return IRB status data. To
 access the service, include these statements:
 ```php
 $irb_num = 12345;
-$IRB = \ExternalModules\ExternalModules::getModuleInstance('irb');
-$valid = $IRB->isIRBValid($irb_num);
-    or
-$personnel = $IRB->getIRBPersonnel($irb_num);
-    or
-$irb_data = $IRB->getAllIRBData($irb_num);
-    or
-$irb_numbers = $IRB->getIRBNumsBySunetID($sunet_id)
-    or
-$irb_info = $IRB->getIRBAllBySunetID($sunet_id)
+try {
+    $IRB = \ExternalModules\ExternalModules::getModuleInstance('irb_lookup');
+    $valid = $IRB->isIRBValid($irb_num);
+            or
+    $personnel = $IRB->getIRBPersonnel($irb_num);
+            or
+    $irb_data = $IRB->getAllIRBData($irb_num);
+            or
+    $irb_numbers = $IRB->getIRBNumsBySunetID($sunet_id)
+            or
+    $irb_info = $IRB->getIRBAllBySunetID($sunet_id)
+} catch(Exception $ex) {
+    $module->emError("Exception when creating class irb_lookup");
+}
 ```
+# Setup
+To use this EM, system settings must be filled in prior to use.  The three API endpoint URLs
+must be added and the privacy attestation projects must be defined.
 
 # Functions:
     * isIRBValid - will return true or false
@@ -27,9 +34,4 @@ $irb_info = $IRB->getIRBAllBySunetID($sunet_id)
     * getIRBAllBySunetID - will return a list of protocols and their status
 
 # Dependencies
-This EM depends on vertx Token Manager and EM Logger.
-
-```$xslt
-
-
-```
+This EM depends on the EM vertx Token Manager and EM Logger.

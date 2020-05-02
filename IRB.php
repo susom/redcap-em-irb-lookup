@@ -27,12 +27,13 @@ class IRB extends \ExternalModules\AbstractExternalModule
     {
         try {
             $response = $this->IRBStatus($irb_number, $pid);
+            $this->emDebug("In isIRBValid response: " . json_encode($response));
         } catch (Exception $ex) {
             $this->emLog("Exception occurred when retrieving IRB Status: " . $ex);
         }
 
         if ($response !== false) {
-            return (($response["isValid"] == true) and ($response["isPresent"] == true) and ($response["protocolState"] == "APPROVED") ? true : false);
+            return (($response["isValid"] == "true")  ? true : false);
         } else {
             return $response;
         }
@@ -49,7 +50,7 @@ class IRB extends \ExternalModules\AbstractExternalModule
     public function getIRBPersonnel($irb_number, $pid = null)
     {
         try {
-        $response = $this->IRBStatus($irb_number, $pid);
+            $response = $this->IRBStatus($irb_number, $pid);
         } catch (Exception $ex) {
             $this->emError("Exception occurred when retrieving IRB Status: " . $ex);
         }
@@ -73,7 +74,7 @@ class IRB extends \ExternalModules\AbstractExternalModule
     public function getAllIRBData($irb_number, $pid = null)
     {
         try {
-        $response = $this->IRBStatus($irb_number, $pid);
+            $response = $this->IRBStatus($irb_number, $pid);
         } catch (Exception $ex) {
             $this->emError("Exception occurred when retrieving IRB Status: " . $ex);
         }
@@ -186,6 +187,7 @@ class IRB extends \ExternalModules\AbstractExternalModule
         //Check to see if Protocol is valid using IRB Validity API
         if (!is_null($irb_number) and !empty($irb_number)) {
             $irb_valid = $this->isIRBValid($irb_number, $pid);
+            $this->emDebug("Is irb valid: " . $irb_valid);
             if (!$irb_valid) {
                 $msg = "* IRB number " . $irb_number . " is not valid from project $pid - might have lapsed or might not be approved";
                 $this->emError($msg);
@@ -209,6 +211,7 @@ class IRB extends \ExternalModules\AbstractExternalModule
         //      HIPAA identifiers => 1 (Names), 3 (telephone numbers), 4 (address), 5 (dates more precise than year),
         //                           7 (Email address), 8 (Medical record numbers),
         $privacy_report = $this->checkPrivacyReport($irb_number);
+        $this->emDebug("Privacy report: " . json_encode($privacy_report));
         if (is_null($privacy_report) or empty($privacy_report)) {
             $msg = "* Cannot find a privacy record for IRB number " . $irb_number;
             $this->emError($msg);
@@ -264,7 +267,12 @@ class IRB extends \ExternalModules\AbstractExternalModule
         $service = "irb";
 
         // Get a valid API token from the vertx token manager
-        $VTM = \ExternalModules\ExternalModules::getModuleInstance('vertx_token_manager');
+        try {
+            $VTM = \ExternalModules\ExternalModules::getModuleInstance('vertx_token_manager');
+        } catch (Exception $ex) {
+            $this->emError("Exception thrown trying to access vertx_token_manager from getIRBToken(): " . $ex->getMessage());
+            exit;
+        }
         $token = $VTM->findValidToken($service);
         if ($token == false) {
             $this->emError("Could not retrieve valid IRB token for service $service");
