@@ -10,10 +10,12 @@ class IRB extends \ExternalModules\AbstractExternalModule
 {
 
     use emLoggerTrait;
+    private $dpa_prefix;
 
     public function __construct()
     {
         parent::__construct();
+        $this->dpa_prefix = 'DPA-';
     }
 
     /**
@@ -37,6 +39,18 @@ class IRB extends \ExternalModules\AbstractExternalModule
         } else {
             return $response;
         }
+    }
+
+    /**
+     * This function validates an DPA number
+     *
+     * @param $value - value to check for DPA number
+     * @return bool|false - is this a DPA?
+     */
+    public function isDPA($value)
+    {
+        $same = strncmp($this->dpa_prefix, $value, strlen($this->dpa_prefix));
+        return ($same === 0 ? true : false);
     }
 
     /**
@@ -186,13 +200,19 @@ class IRB extends \ExternalModules\AbstractExternalModule
 
         //Check to see if Protocol is valid using IRB Validity API
         if (!is_null($irb_number) and !empty($irb_number)) {
-            $irb_valid = $this->isIRBValid($irb_number, $pid);
-            $this->emDebug("Is irb valid: " . $irb_valid);
-            if (!$irb_valid) {
-                $msg = "* IRB number " . $irb_number . " is not valid from project $pid - might have lapsed or might not be approved";
-                $this->emError($msg);
-                return array("status"       => false,
-                             "message"      => $msg);
+
+            // If this is a DPA request (Clinical QI/Assessment) project, there is no IRB involved so the
+            // record number from pid 9883.  Skip the IRB check.
+            if ($this->isDPA($irb_number)) {
+                $this->emDebug("Project $pid has entered a Clinical AI/Assessment ($irb_number) number instead of IRB number");
+            } else {
+                $irb_valid = $this->isIRBValid($irb_number, $pid);
+                if (!$irb_valid) {
+                    $msg = "* IRB number " . $irb_number . " is not valid from project $pid - might have lapsed or might not be approved";
+                    $this->emError($msg);
+                    return array("status" => false,
+                        "message" => $msg);
+                }
             }
         } else {
             $msg = "* Empty IRB number entered from project $pid";
@@ -211,7 +231,6 @@ class IRB extends \ExternalModules\AbstractExternalModule
         //      HIPAA identifiers => 1 (Names), 3 (telephone numbers), 4 (address), 5 (dates more precise than year),
         //                           7 (Email address), 8 (Medical record numbers),
         $privacy_report = $this->checkPrivacyReport($irb_number);
-        $this->emDebug("Privacy report: " . json_encode($privacy_report));
         if (is_null($privacy_report) or empty($privacy_report)) {
             $msg = "* Cannot find a privacy record for IRB number " . $irb_number;
             $this->emError($msg);
@@ -319,6 +338,10 @@ class IRB extends \ExternalModules\AbstractExternalModule
             $this->emDebug("Successfully retrieved IRB Status for project ID: " . $pid . ", status: " . $response);
             $jsonResponse = json_decode($response, true);
             $response = $jsonResponse["protocols"][0];
+            if (empty($response)) {
+                $this->emError("No data for protocol $irb_number");
+                return false;
+            }
             return $response;
         }
     }
@@ -350,21 +373,34 @@ class IRB extends \ExternalModules\AbstractExternalModule
             'd_full_name', 'd_geographic', 'd_dates', 'd_telephone', 'd_fax', 'd_email', 'd_ssn', 'd_mrn', 'd_beneficiary_num',
             'd_insurance_num', 'd_certificate_num', 'd_vehicle_num', 'd_device_num', 'approval_date');
 
-        $privacy_filter = "[prj_protocol] = '" . $irb_num . "' and [approved] = 1";
-        $privacy_data = REDCap::getData($privacy_pid, 'array', null, $privacy_fields_new, null, null, false, false, false, $privacy_filter);
-        if (!is_null($privacy_data) and !empty($privacy_data)) {
+        // If this is a DPA project and not an IRB project, just retrieve the record listed in the DPA number
+        // The DPA number is DPA-xxxx where xxxx is the record number of project 9883
+        $privacy_record = array();
+        if ($this->isDPA($irb_num)) {
+            $record_num = substr($irb_num, strlen($this->dpa_prefix));
+            $privacy_data = REDCap::getData($privacy_pid, 'array', $record_num, $privacy_fields_new);
+            $privacy_event_id = array_keys($privacy_data[$record_num]);
+            $privacy_record = $privacy_data[$record_num][$privacy_event_id[0]];
+        } else {
+            $privacy_filter = "[prj_protocol] = '" . $irb_num . "' and [approved] = 1";
+            $privacy_data = REDCap::getData($privacy_pid, 'array', null, $privacy_fields_new, null, null, false, false, false, $privacy_filter);
 
-            // Check to see which record has the last approval and select that one
-            $last_modified_date = array();
-            foreach ($privacy_data as $privacy_record_num => $privacy_record) {
-                $last_modified_date[$privacy_record_num] = $privacy_record[$privacy_event_id]['approval_date'];
+            if (!is_null($privacy_data) and !empty($privacy_data)) {
+
+                // Check to see which record has the last approval and select that one
+                $last_modified_date = array();
+                foreach ($privacy_data as $privacy_record_num => $privacy_record) {
+                    $last_modified_date[$privacy_record_num] = $privacy_record[$privacy_event_id]['approval_date'];
+                }
+
+                // Sorting is most recent first so take the first record
+                arsort($last_modified_date);
+                $privacy_record_id = array_keys($last_modified_date)[0];
+                $privacy_record = $privacy_data[$privacy_record_id][$privacy_event_id];
             }
+        }
 
-            // Sorting is most recent first so take the first record
-            arsort($last_modified_date);
-            $privacy_record_id = array_keys($last_modified_date)[0];
-            $privacy_record = $privacy_data[$privacy_record_id][$privacy_event_id];
-
+        if (!is_null($privacy_record) && !empty($privacy_record)) {
             // Convert the format to be the same as the old Privacy Report
             $full_name  = (($privacy_record["d_full_name"][1] === '1')or
                 ($privacy_record["d_full_name"][2] === '1') or
@@ -454,9 +490,8 @@ class IRB extends \ExternalModules\AbstractExternalModule
                                                     "web_urls"      => "$weburls"
                                                     )
                                             )
-           );
+            );
 
-            $this->emDebug("Return from privacy report $privacy_pid: " . json_encode($privacy));
             return $privacy;
         } else {
             $this->emDebug("Privacy approval was not found in $privacy_pid - looking in project $old_privacy_pid.");
