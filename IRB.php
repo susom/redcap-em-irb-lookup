@@ -319,6 +319,12 @@ class IRB extends \ExternalModules\AbstractExternalModule
             $this->emLog("Redcap project $pid is requesting status for IRB " . $irb_number);
         }
 
+        // Check to see if this a DPA instead of an IRB number and if so, skip because it won't be valid
+        if ($this->isDPA($irb_number)) {
+            $this->emLog("This is a DPA so skip the IRB check for Redcap project $pid, number " . $irb_number);
+            return array("isValid" => "true");
+        }
+
         // Retrieve a valid token
         $token = $this->getIRBToken();
         if ($token == false) {
