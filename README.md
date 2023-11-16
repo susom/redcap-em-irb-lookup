@@ -11,19 +11,20 @@ $irb_or_dpa = '12345';
 $pid = $this->getProjectId();
 try {
     $Compliance = \ExternalModules\ExternalModules::getModuleInstance('irb_lookup');
-    $irb_valid = $Compliance->isIRBValid($irb_or_dpa); // if parameter is a DPA, will check for valid IRB
+    $irb_valid = $Compliance->isIRBValid($irb_or_dpa); // if DPA, will check for valid IRB
             
-    $dpa_valid = $Compliance->isDpaValid($irb_or_dpa);  // if parameter is an irb, will check if it has a valid dpa  
+    $dpa_valid = $Compliance->isDpaValid($irb_or_dpa);  // if IRB, will check if it has a valid dpa  
         
     $personnel = $Compliance->getCompliancePersonnel($irb_or_dpa, $pid);
     // returns array of personnel structs with the following definition
     /*{"sunetid":string,
         "role":string,  // "role" indicates role on IRB submission
         "onIrb":boolean,
-        "signedDpa":boolean, // signedDpa indicates approved DPA in redcap PID 9883, (retired) 4947 or add on in PID 
-        12935
-        "phiDownloadPolicyExempt":boolean, // phiDownloadPolicyExempt approved exemption in redcap project 28287
-        "hasOnlineChartReviewPermission":boolean, // 
+// signedDpa indicates approved DPA in redcap PID 9883,(retired) 4947 or PID 12935
+        "signedDpa":boolean,
+// phiDownloadPolicyExempt indicates exemption approved in redcap pid 28287 
+        "phiDownloadPolicyExempt":boolean, 
+        "hasOnlineChartReviewPermission":boolean,
         "hasPhiDownloadPermission":boolean,
         "isResearchProject":boolean}*/
     
@@ -101,30 +102,38 @@ try {
         },
     "dpa":null or { // this is different from struct returned from privacy settings
         "recordId": number,
-        "protocolNumStr": string, "protocolNum": number, // this refers to the IRB if any
+        "protocolNumStr": string, "protocolNum": number, // the IRB #
         "dpaVersionNumber":3,
         "dpaExists":true,"isDpaValid":true,
         "primaryUser":"<suid of primary user>",
         "errorMessage":null,
         "dpaApproved":"APPROVED","dpaStatus":"COMPLETE",
-        "dpaApprovalDate":"2020-06-22 13:10","dpaCreateDate":"2020-06-22 12:01:03","dpaExpireDate":null,
+        "dpaApprovalDate":"2020-06-22 13:10","dpaCreateDate":"2020-06-22 12:01:03",
+        "dpaExpireDate":null,
         "projectTitle":"XXXX",
         "projectTypeCodedValue":"1","projectType":"Research (IRB)",
         "department":"<department name>","facultySponsor":"<sponsor name>",
-        "approvedForDemoNonPhi":true,"approvedForDemoPhi":true,"approvedForDiagnosis":true,
-        "approvedForProcedure":true,"approvedForLabResult":true,"approvedForMedications":true,
-        "approvedForHospitalCost":false,"approvedForDemographics":true,"approvedForPsychNotes":false,
-        "approvedForClinicalNotes":true,"approvedForRadiology":true,"approvedForOtherImages":false,
-        "approvedForOtherNonPhi":true,"approvedForName":true, "approvedForStateOrLess":true,
-        "approvedForDates":true,"approvedForPhoneNums":false,"approvedForFaxNums":false,"approvedForEmail":false,
-        "approvedForSsn":false,"approvedForMrn":true,"approvedForHealthPlan":true,"approvedForAcctNums":true,
-        "approvedForCertNum":true,"approvedForVehicleNum":false,"approvedForDeviceNum":false,"approvedForUrls":false,
-        "approvedForIps":false,"approvedForIdentifyingImage":false,"approvedForOtherPhi":false,"approvedForAnyPhi":true,
+        "approvedForAnyPhi":true,
+        "approvedForDemoNonPhi":true,"approvedForDemoPhi":true,
+        "approvedForDemographics":true,"approvedForDiagnosis":true,
+        "approvedForLabResult":true,"approvedForMedications":true,
+        "approvedForHospitalCost":false,"approvedForPsychNotes":false,
+        "approvedForProcedure":true,"approvedForClinicalNotes":true,
+        "approvedForRadiology":true,"approvedForOtherImages":false,
+        "approvedForOtherNonPhi":true,"approvedForName":true,
+        "approvedForStateOrLess":true,"approvedForDates":true,
+        "approvedForPhoneNums":false,"approvedForFaxNums":false,
+        "approvedForEmail":false, "approvedForSsn":false,
+        "approvedForMrn":true,"approvedForHealthPlan":true,
+        "approvedForCertNum":true,"approvedForVehicleNum":false,
+        "approvedForDeviceNum":false,"approvedForUrls":false,
+        "approvedForIps":false,"approvedForIdentifyingImage":false,
+        "approvedForAcctNums":true,"approvedForOtherPhi":false,
     
         "intentForDiagnosis":"Internal Use","intentForProcedure":"Internal Use","intentForLabResult":"Internal Use","intentForMedications":"Internal Use","intentForHospitalCost":"","intentForDemographics":"Internal Use","intentForPsychNotes":"","intentForClinicalNotes":"Internal Use","intentForRadiology":"Internal Use","intentForOtherImages":"","intentForOtherNonPhi":"Internal Use","intentForName":"Internal Use","intentForStateOrLess":"Internal Use","intentForDates":"Internal Use","intentForPhoneNums":"","intentForFaxNums":"","intentForEmail":"","intentForSsn":"","intentForMrn":"Internal Use","intentForHealthPlan":"Internal Use","intentForAcctNums":"Internal Use","intentForCertNum":"Internal Use","intentForVehicleNum":"","intentForDeviceNum":"","intentForUrls":"","intentForIps":"","intentForIdentifyingImage":"","intentForOtherPhi":""
      },
      "personnel": array of personnel struct,
-    }
+    }*/
         
     $user_compliance_data = $Compliance->getComplianceAllBySunetID($sunet_id, $pid=null);
     // return array of all compliance settings associated with a user
@@ -165,24 +174,23 @@ whether or not the IRB is approved for them.  When using the privacy attestation
 information must be defined. 
 
 # Compliance Functions:
-    * isIRBValid - will return true or false; if input is a DPA, will check for valid IRB
-    * isDpaValid - will return true or false; if input is an IRB, will check for a valid DPA
-    * getCompliancePersonnel - will return an array of personnel associated with the IRB or DPA and their permissions
-    * getUserPermissions - will return user permissions for an IRB or DPA or false if user has no permissions
-    * getAllCompliance - will return all compliance data including status, irb, dpa, personnel, expiration date, etc.
-    * getComplianceIdsBySunetID - will return a list of IRBs or DPAs that this person is named on
-    * getComplianceAllBySunetID - will return a list of protocols and their status
-    + getCompliancePrivacySettings - returns the privacy categories and whether or not this project is approved 
-                           for data in that category.
+* **isIRBValid** - will return true or false; if input is a DPA, will check for valid IRB
+* **isDpaValid** - will return true or false; if input is an IRB, will check for a valid DPA
+* **getCompliancePersonnel** - will return an array of personnel associated with the IRB or DPA and their permissions
+* **getUserPermissions** - will return user permissions for an IRB or DPA or false if user has no permissions
+* **getAllCompliance** - will return all compliance data including status, irb, dpa, personnel, expiration date, etc.
+* **getComplianceIdsBySunetID** - will return a list of IRBs or DPAs that this person is named on
+* **getComplianceAllBySunetID** - will return a list of protocols and their status
+* **getCompliancePrivacySettings** - returns the privacy categories and whether or not this project is approved for data in that category.
 
 # IRB Functions (deprecated):
-    * getIRBPersonnel - will return a json encoded list of people named on the IRB
-    * getAllIRBData - will return all IRB data including status, personnel, expiration date, etc.
-    * getIRBNumsBySunetID - will return a list of IRB Numbers that this person is named on
-    * getIRBAllBySunetID - will return a list of protocols and their status
+* getIRBPersonnel - will return a json encoded list of people named on the IRB
+* getAllIRBData - will return all IRB data including status, personnel, expiration date, etc.
+* getIRBNumsBySunetID - will return a list of IRB Numbers that this person is named on
+* getIRBAllBySunetID - will return a list of protocols and their status
 
 # Privacy Function (deprecated):
-    * getPrivacySettings (deprecated) - returns the privacy categories and whether or not this project is approved 
+* getPrivacySettings (deprecated) - returns the privacy categories and whether or not this project is approved 
                            for data in that category.
     
 # Dependencies
