@@ -20,6 +20,7 @@ class IRB extends \ExternalModules\AbstractExternalModule
 
     /**
      * This function validates an IRB number and returns true or false.
+     * If the parameter is a DPA, it will return the validity of the associated IRB if there is one.
      *
      * @param $irb_or_dpa - IRB or DPA to verify validity
      * @param null $pid - Optional calling project - used for logging if available
@@ -53,6 +54,14 @@ class IRB extends \ExternalModules\AbstractExternalModule
         return ($same === 0 ? true : false);
     }
 
+    /**
+     * This function validates an DPA and returns true or false.
+     * If the parameter is an IRB, it will return whether the IRB has a valid DPA.
+     *
+     * @param $irb_or_dpa - IRB or DPA to verify validity
+     * @param null $pid - Optional calling project - used for logging if available
+     * @return bool|false - IRB Number is valid or not
+     */
     public function isDpaValid($value, $pid=null) {
         $compliance = $this->ComplianceSettings($value, $pid);
         if ($compliance && $compliance[0] && $compliance[0]['dpa']) {
