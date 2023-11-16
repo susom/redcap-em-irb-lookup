@@ -21,28 +21,28 @@ class IRB extends \ExternalModules\AbstractExternalModule
     /**
      * This function validates an IRB number and returns true or false.
      *
-     * @param $irb_number - IRB Number to verify validity
+     * @param $irb_or_dpa - IRB or DPA to verify validity
      * @param null $pid - Optional calling project - used for logging if available
      * @return bool|false - IRB Number is valid or not
      */
-    public function isIRBValid($irb_number, $pid = null)
+    public function isIRBValid($irb_or_dpa, $pid = null)
     {
         try {
-            $response = $this->IRBStatus($irb_number, $pid);
+            $response = $this->ComplianceSettings($irb_or_dpa, $pid);
             $this->emDebug("In isIRBValid response: " . json_encode($response));
         } catch (Exception $ex) {
             $this->emLog("Exception occurred when retrieving IRB Status: " . $ex);
         }
 
-        if ($response !== false) {
-            return (($response["isValid"] == "true")  ? true : false);
+        if ($response !== false && $response[0]) {
+            return (($response[0]["isValid"] == "true")  ? true : false);
         } else {
             return $response;
         }
     }
 
     /**
-     * This function validates an DPA number
+     * This function checks if this is a dpa string
      *
      * @param $value - value to check for DPA number
      * @return bool|false - is this a DPA?
@@ -51,6 +51,21 @@ class IRB extends \ExternalModules\AbstractExternalModule
     {
         $same = strncmp($this->dpa_prefix, $value, strlen($this->dpa_prefix));
         return ($same === 0 ? true : false);
+    }
+
+    public function isDpaValid($value, $pid=null) {
+        $compliance = $this->ComplianceSettings($value, $pid);
+        if ($compliance && $compliance[0] && $compliance[0]['dpa']) {
+            return true;
+        }
+        return false;
+    }
+
+    private function irbOrDpaStr($irb_or_dpa) {
+        if ($this->isDPA($irb_or_dpa)) {
+            return $irb_or_dpa;
+        }
+        return 'IRB ' . $irb_or_dpa;
     }
 
     /**
@@ -69,8 +84,23 @@ class IRB extends \ExternalModules\AbstractExternalModule
             $this->emError("Exception occurred when retrieving IRB Status: " . $ex);
         }
 
-        if ($response["isPresent"] == true) {
+        if ($response) {
             return $response["personnel"];
+        } else {
+            return false;
+        }
+    }
+
+    public function getCompliancePersonnel($irb_or_dpa, $pid = null) {
+        try {
+            $response = $this->ComplianceSettings($irb_or_dpa, $pid);
+        } catch (Exception $ex) {
+            $this->emError("Exception occurred when retrieving Compliance Settings for "
+                . $this->irbOrDpaStr($irb_or_dpa). ": " . $ex);
+        }
+
+        if ($response && $response[0]) {
+            return $response[0]["personnel"];
         } else {
             return false;
         }
@@ -93,8 +123,31 @@ class IRB extends \ExternalModules\AbstractExternalModule
             $this->emError("Exception occurred when retrieving IRB Status: " . $ex);
         }
 
-        if ($response["isPresent"] == true) {
+        if ($response) {
             return $response;
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * This will return all available data returned from the compliance API call.  The data includes:
+     *  project title, expiration date, protocol, dpa, personnel
+     *
+     * @param $irb_number - IRB number being queried
+     * @param null $pid - Optional calling project - used for logging if available
+     * @return false if IRB or DPA is not found
+     * */
+    public function getAllCompliance($irb_or_dpa, $pid = null) {
+        try {
+            $response = $this->ComplianceSettings($irb_or_dpa, $pid);
+        } catch (Exception $ex) {
+            $this->emError("Exception occurred when retrieving Compliance Settings for "
+                . $this->irbOrDpaStr($irb_or_dpa). ": " . $ex);
+        }
+
+        if ($response) {
+            return $response[0];
         } else {
             return false;
         }
@@ -134,6 +187,32 @@ class IRB extends \ExternalModules\AbstractExternalModule
             return $response;
         }
 
+    }
+
+    /**
+     * This function will a list of IRB numbers, DPA ids associated with an sunet_id.
+     * It offers a more complete list of IRBs than getIRBNumsBySunetID because it returns IRBs for which the sunet_id
+     * is not listed but has an associated DPA.
+     *
+     * @param $sunet_id - SunetID being queried for protocols
+     * @return false - if an error occurred
+     *         array - array of protocols associated with this sunetID
+     */
+    public function getComplianceIdsBySunetID($sunet_id, $pid = null) {
+        if (is_null($sunet_id)) {
+            $this->emError("Status is being requested for null sunetID ");
+            return false;
+        } else {
+            $this->emDebug("Redcap user $sunet_id is requesting data security ids");
+        }
+        $security_settings = $this->getComplianceAllBySunetID($sunet_id, $pid);
+        if ($security_settings) {
+            $dss_ids = array_map(fn($dss) => $dss['irbOrDpa'],
+                $security_settings);
+            $this->emDebug('$dss_ids = ' . print_r($dss_ids, true));
+            return $dss_ids;
+        }
+        return false;
     }
 
     /**
@@ -181,6 +260,137 @@ class IRB extends \ExternalModules\AbstractExternalModule
             return $responseArray;
         }
 
+    }
+
+    /**
+     * This function will retrieve the full list of IRBs, DPAs and download exemptions associated with an sunet_id.
+     * It offers a more complete list of IRBs than getIRBAllBySunetID because it returns IRBs for which the sunet_id
+     * is not listed but has an associated DPA.
+     *
+     * @param $sunet_id - SunetID being queried for protocols
+     * @return false - if an error occurred
+     *         array - array of protocols associated with this sunetID
+     */
+    public function getComplianceAllBySunetID($sunet_id, $pid = null) {
+        // If this user is null, there is nothing to retrieve
+        if (is_null($sunet_id)) {
+            $this->emError("Status is being requested for Null user");
+            return false;
+        } else {
+            $this->emDebug("Redcap user $sunet_id is requesting data security status.");
+        }
+        return $this->invokeComplianceApi($sunet_id, $pid);
+    }
+
+    /**
+     * This function will return the user permissions associated with the irb or dpa
+     * or false if the user has no permissions
+     *
+     * @param $irb_or_dpa - IRB num or DPA (prefixed by DPA-)
+     * @param $sunet_id - SunetID being queried for protocols
+     * @return false - if an error occurred
+     *         array - array of protocols associated with this sunetID
+     */    public function getUserPermissions($irb_or_dpa, $sunet_id, $pid = null) {
+        // If this user is null, there is nothing to retrieve
+        if (is_null($sunet_id) || is_null($irb_or_dpa)) {
+            $this->emError("Unable to retrieve user permissions for user $sunet_id, IRB or DPA $irb_or_dpa");
+            return false;
+        } else {
+            $this->emDebug("Get user permissions for user $sunet_id, "
+                . $this->irbOrDpaStr($irb_or_dpa));
+            $personnel = $this->getCompliancePersonnel($irb_or_dpa, $pid);
+            if ($personnel) {
+                $user = array_filter($personnel, function($p) USE ($sunet_id) {
+                    return $p['sunetid'] == $sunet_id;
+                });
+                if (empty($user)) {
+                    $this->emDebug("User $sunet_id is not found on "
+                        . $this->irbOrDpaStr($irb_or_dpa));
+                    return false;
+                } else {
+                    return array_shift($user);
+                }
+
+            } else {
+                $this->emDebug("Missing IRB or DPA $irb_or_dpa");
+                return false;
+            }
+        }
+
+    }
+
+    /**
+     * This function will return privacy settings of an irb or dpa using the compliance API
+     * it returns an associated array with status, message and privacy settings if available.
+     *
+     * @param $irb_or_dpa - IRB number to check for validity and return privacy settings
+     * @return array - status - true/false - status is true when IRB is valid otherwise false
+     *                 message - returned message
+     *                 privacy - Privacy settings when status is true
+     */
+    public function getCompliancePrivacySettings($irb_or_dpa, $pid) {
+        $return = [];
+        if (!is_null($irb_or_dpa) and !empty($irb_number)) {
+            return array(
+                "status" => false,
+                "message" => "* Empty IRB number entered from project $pid"
+            );
+        }
+
+        $compliance = $this->ComplianceSettings($irb_or_dpa, $pid);
+        if ($compliance && $compliance[0]) {
+            if (isset($compliance[0]['dpa'])) {
+                $dpa = $compliance[0]['dpa'];
+                $return['status'] = true;
+                $return['message'] = "Found privacy report";
+                $return['privacy'] = array(
+                    "dpa" => "DPA-" . $dpa["recordId"], // new
+                    "projectType" => $dpa["projectType"], // new
+                    "valid" => $dpa["isDpaValid"], // new
+                    "approved" => $dpa["dpaApproved"] === 'APPROVED',
+                    "lab_results" => $dpa["approvedForLabResult"],
+                    "billing_codes" => $dpa["approvedForHospitalCost"],
+                    "medications" => $dpa["approvedForMedications"],
+                    "diagnosis" => $dpa["approvedForDiagnosis"], // new
+                    "procedure" => $dpa["approvedForProcedure"], // new
+                    "clinical_notes" => $dpa["approvedForClinicalNotes"], // new
+                    "psych_notes" => $dpa["approvedForPsychNotes"], // new
+                    "radiology" => $dpa["approvedForRadiology"], // new
+                    "demographic" => array("nonphi" => $dpa["approvedForDemoNonPhi"],
+                        "phi" => $dpa["approvedForDemoPhi"],
+                        "phi_approved" => array(
+                            "fullname" => $dpa["approvedForName"],
+                            "ssn" => $dpa["approvedForSsn"],
+                            "phone" => $dpa["approvedForPhoneNums"],
+                            "geography" => $dpa["approvedForStateOrLess"],
+                            "dates" => $dpa["approvedForDates"],
+                            "fax" => $dpa["approvedForFaxNums"],
+                            "email" => $dpa["approvedForEmail"],
+                            "mrn" => $dpa["approvedForMrn"],
+                            "insurance" => $dpa["approvedForHealthPlan"],
+                            "accounts" => $dpa["approvedForAcctNums"],
+                            "license" => $dpa["approvedForCertNum"],
+                            "vehicle" => $dpa["approvedForVehicleNum"], // new
+                            "deviceids" => $dpa["approvedForDeviceNum"],
+                            "biometric" => "0",
+                            "photos" => $dpa["approvedForIdentifyingImage"],
+                            "other" => $dpa["approvedForOtherPhi"],
+                            "web_urls" => $dpa["approvedForUrls"]
+                        )
+                    )
+                );
+
+            } else {
+                $return['status'] = false;
+                $return['message'] = "* Cannot find a privacy record for "
+                    . $this->irbOrDpaStr($irb_or_dpa);
+            }
+        } else {
+            $return['status'] = false;
+            $return['message'] = "* "
+                . $this->irbOrDpaStr($irb_or_dpa) . " is not valid from project $pid - might have lapsed or might not be approved";
+        }
+        return $return;
     }
 
     /**
@@ -351,6 +561,57 @@ class IRB extends \ExternalModules\AbstractExternalModule
             return $response;
         }
     }
+
+    /**
+     * This function retrieves the valid token and makes the API call to check validity of an IRB or DPA
+     *
+     * @param $irb_or_dpa - IRB or DPA to check status
+     * @param $pid - only used for logging
+     * @return false - if an error is found
+     *         array - IRB information retrieved from API call
+     * @throws \Exception
+     */
+    private function ComplianceSettings($irb_or_dpa, $pid=null)
+    {
+        if (is_null($irb_or_dpa)) {
+            $this->emError("Status is being requested for null IRB or DPA");
+            return false;
+        } else {
+            $this->emLog("Redcap project $pid is requesting status for "
+                . $this->irbOrDpaStr($irb_or_dpa));
+        }
+        return $this->invokeComplianceApi($irb_or_dpa, $pid);
+    }
+
+    private function invokeComplianceApi($search, $pid=null) {
+        // Retrieve a valid token
+        $token = $this->getIRBToken();
+        if ($token == false) {
+            $this->emError("Could not retrieve a valid IRB Token for project $pid, $search");
+            return false;
+        }
+
+        // Retrieve info for $search
+        $header = array("Authorization: Bearer " . $token);
+        $api_url = $this->getSystemSetting("compliance_url") . $search;
+        $response = http_get($api_url, 10, "", $header);
+        if ($response == false) {
+            $this->emError("Error calling Compliance API for project ID " . $pid . " and parameter $search");
+            $this->emError("Response from http POST: " . $response);
+            return false;
+        } else {
+            $this->emDebug("Successfully retrieved Data Security Settings for project ID:  $pid");
+                //. ", status: " . $response);
+            $jsonResponse = json_decode($response, true);
+            $response = $jsonResponse["dataSecuritySettings"];
+            if (empty($response)) {
+                $this->emError("No data for parameter $search");
+                return false;
+            }
+            return $response;
+        }
+    }
+
 
     /**
      * This function will check the status of an IRB number and if valid, check the privacy attestation for an
