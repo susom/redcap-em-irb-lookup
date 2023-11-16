@@ -130,7 +130,18 @@ try {
         "approvedForIps":false,"approvedForIdentifyingImage":false,
         "approvedForAcctNums":true,"approvedForOtherPhi":false,
     
-        "intentForDiagnosis":"Internal Use","intentForProcedure":"Internal Use","intentForLabResult":"Internal Use","intentForMedications":"Internal Use","intentForHospitalCost":"","intentForDemographics":"Internal Use","intentForPsychNotes":"","intentForClinicalNotes":"Internal Use","intentForRadiology":"Internal Use","intentForOtherImages":"","intentForOtherNonPhi":"Internal Use","intentForName":"Internal Use","intentForStateOrLess":"Internal Use","intentForDates":"Internal Use","intentForPhoneNums":"","intentForFaxNums":"","intentForEmail":"","intentForSsn":"","intentForMrn":"Internal Use","intentForHealthPlan":"Internal Use","intentForAcctNums":"Internal Use","intentForCertNum":"Internal Use","intentForVehicleNum":"","intentForDeviceNum":"","intentForUrls":"","intentForIps":"","intentForIdentifyingImage":"","intentForOtherPhi":""
+        "intentForDiagnosis":"Internal Use","intentForProcedure":"Internal Use",
+        "intentForLabResult":"Internal Use","intentForMedications":"Internal Use",
+        "intentForHospitalCost":"","intentForDemographics":"Internal Use",
+        "intentForPsychNotes":"","intentForClinicalNotes":"Internal Use",
+        "intentForRadiology":"Internal Use","intentForOtherImages":"",
+        "intentForOtherNonPhi":"Internal Use","intentForName":"Internal Use",
+        "intentForStateOrLess":"Internal Use","intentForDates":"Internal Use",
+        "intentForPhoneNums":"","intentForFaxNums":"","intentForEmail":"",
+        "intentForSsn":"","intentForMrn":"Internal Use",
+        "intentForHealthPlan":"Internal Use","intentForAcctNums":"Internal Use",
+        "intentForCertNum":"Internal Use","intentForVehicleNum":"","intentForDeviceNum":"",
+        "intentForUrls":"","intentForIps":"","intentForIdentifyingImage":"","intentForOtherPhi":""
      },
      "personnel": array of personnel struct,
     }*/
@@ -170,8 +181,8 @@ endpoint is required.
 
 To use deprecated IRB functions, three IRB API endpoint URLs must be added. 
 In addition, there are utility functions which will return the privacy attestation categories and the status of 
-whether or not the IRB is approved for them.  When using the privacy attestation checks, the REDCap projects which store the privacy
-information must be defined. 
+whether or not the IRB is approved for them.  When using the privacy attestation checks, 
+the REDCap projects which store the privacy information must be defined. 
 
 # Compliance Functions:
 * **isIRBValid** - will return true or false; if input is a DPA, will check for valid IRB
