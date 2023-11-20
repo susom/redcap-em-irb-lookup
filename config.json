@@ -41,6 +41,12 @@
       "type": "checkbox"
     },
     {
+      "key": "compliance_url",
+      "name": "<b>Compliance API URL:</b> Since endpoint to check for IRB & DPA validity and approvals",
+      "required": true,
+      "type": "text"
+    },
+    {
       "key": "irb_url",
       "name": "<b>API IRB Endpoint URL</b>",
       "required": true,
