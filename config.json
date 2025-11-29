@@ -19,14 +19,27 @@
       "institution": "Stanford University"
     }
   ],
-
-  "permissions": [
+  "framework-version": 16,
+  "auth-ajax-actions": [
+    "getIRBNumsBySunetID",
+    "getAllIrbInformation"
   ],
-
   "links": {
     "control-center": [
+      {
+        "name": "Test IRB Lookup",
+        "icon": "fas fa-check-circle",
+        "url": "test.php",
+        "show-header-and-footer": false
+      }
     ],
     "project": [
+      {
+        "name": "IRB Lookup Attributes",
+        "icon": "fas fa-check-circle",
+        "url": "pages/attributes.php",
+        "show-header-and-footer": false
+      }
     ]
   },
 
@@ -65,6 +78,12 @@
       "type": "text"
     },
     {
+      "key": "irb_url_all_v2",
+      "name": "<b>V2 New API url to fetch all IRB metadata</b>",
+      "required": true,
+      "type": "text"
+    },
+    {
       "key": "new_privacy_event_id",
       "name": "<b>Event ID of New Privacy Report</b>",
       "required": true,
@@ -91,5 +110,77 @@
   ],
 
   "project-settings": [
+    {
+        "key": "module-description",
+        "type": "descriptive",
+        "name": "<h5><strong>Module Configuration</strong></h5>"
+    },
+    {
+        "key": "enable-sunet-irb-search",
+        "name": "<b>Enable SUNET ID to IRB Number Lookup</b><br>If enabled, the module will lookup IRB Numbers associated with a SUNET ID, and output metadata from a selected IRB",
+        "type": "checkbox",
+        "required": false
+    },
+    {
+        "key": "sunet-id-field",
+        "name": "<b>SUNET ID Field</b><br>Please enter a SUNET to lookup the associated IRB Numbers for this user",
+        "type": "field-list",
+        "required": true,
+        "branchingLogic": {
+          "field": "enable-sunet-irb-search",
+          "value": "1"
+        }
+    },
+    {
+      "key": "enforce-sunet-irb-search",
+      "name": "<b>Enforce SUNET ID to IRB Number Lookup</b><br>If enabled, the module will only return results for the currently logged-in user",
+      "type": "checkbox",
+      "required": true,
+      "branchingLogic": {
+        "field": "enable-sunet-irb-search",
+        "value": "1"
+      }
+    },
+    {
+      "key": "enable-irb-search",
+      "name": "<b>Enable IRB Number Lookup</b><br>If enabled, the module will lookup manually provided IRB Numbers and pull in associated metadata from the Compliance API",
+      "type": "checkbox",
+      "required": false
+    },
+    {
+      "key": "irb-field",
+      "name": "<b>IRB Field</b><br>The IRB field housing the number to pull eProtocol information for",
+      "type": "field-list",
+      "branchingLogic": {
+        "field": "enable-irb-search",
+        "value": "1"
+      },
+      "required": true
+    },
+    {
+        "key": "mapping-fields-description",
+        "type": "descriptive",
+        "name": "<h5><strong>eProtocol Attribute Mapping Designations</strong></h5>"
+    },
+    {
+        "key": "irb-mapping-field",
+        "name": "<b>IRB Mapping Field</b><br>Select the field in this project that contains the IRB Number to look up",
+        "repeatable":true,
+        "type": "sub_settings",
+        "sub_settings":[
+          {
+            "key": "variable-name",
+            "name": "<b>REDCap Form field</b><br>The variable name of the REDCap field that will store below eProtocol Attribute",
+            "type": "field-list",
+            "required": true
+          },
+          {
+            "key": "eprotocol-attribute",
+            "name": "<b>eProtocol Attribute</b><br>The eProtocol Attribute to map from the Compliance API",
+            "type": "text",
+            "required": true
+          }
+        ]
+    }
   ]
 }
