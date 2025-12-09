@@ -9,6 +9,10 @@ require_once "emLoggerTrait.php";
 class IRB extends \ExternalModules\AbstractExternalModule
 {
 
+    private $allowedPages = [
+        'DataEntry/index.php',
+        'surveys/index.php'
+    ];
     use emLoggerTrait;
     private $dpa_prefix;
 
@@ -20,8 +24,9 @@ class IRB extends \ExternalModules\AbstractExternalModule
 
     function redcap_every_page_top($project_id)
     {
+
         // Do something on the Online Designer page
-        if (PAGE == 'DataEntry/index.php')
+        if (in_array(PAGE, $this->allowedPages))
         {
             $settings = $this->getProjectSettings($project_id);
 
@@ -52,8 +57,9 @@ class IRB extends \ExternalModules\AbstractExternalModule
 
     public function generateFieldMapping($eProtocolAttributes, $redcapFields) {
         $mapping = [];
+        global $Proj;
         foreach ($eProtocolAttributes as $ind => $attribute) {
-            $mapping[$attribute] = $redcapFields[$ind];
+            $mapping[$attribute] = $Proj->metadata[$attribute];
         }
         return $mapping;
     }

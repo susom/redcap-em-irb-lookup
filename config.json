@@ -24,6 +24,10 @@
     "getIRBNumsBySunetID",
     "getAllIrbInformation"
   ],
+  "no-auth-ajax-actions": [
+    "getIRBNumsBySunetID",
+    "getAllIrbInformation"
+  ],
   "links": {
     "control-center": [
       {
