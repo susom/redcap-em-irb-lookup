@@ -9,6 +9,135 @@
         inputEl: null,         // Sunet search input
         irbEl: null,           // NEW: protocol number search input
         lastResults: null,
+        normalizeDdMonYy(input, validationType) {
+            let val = (input || "").trim();
+            if (!val) return val;
+
+            // 1) Split into date + optional time (but ignore incoming time; we override)
+            let datePart = val;
+            const spaceIdx = val.indexOf(" ");
+            if (spaceIdx !== -1) {
+                datePart = val.slice(0, spaceIdx);
+            }
+
+            // 2) Decide default time based on validation type
+            let timePart = "";
+            if (/datetime/.test(validationType)) {
+                if (/seconds/.test(validationType)) {
+                    timePart = "00:00:00";
+                } else {
+                    timePart = "00:00";
+                }
+            }
+
+            // 3) Detect delimiter in IRB date (e.g., 06-MAY-15 or 06/05/2015)
+            const delim = datePart.includes("-")
+                ? "-"
+                : (datePart.includes("/") ? "/" : ".");
+
+            const parts = datePart.split(delim).map(p => p.trim());
+            if (parts.length !== 3) {
+                return val; // Not expected format, return as-is
+            }
+
+            let [p1, p2, p3] = parts;
+
+            // 4) Assume IRB sends DAY-MONTH-YEAR:
+            //    - If any token has letters, that token is the month (e.g., 06-MAY-15)
+            //    - Otherwise, treat as numeric D-M-Y (e.g., 06-05-15)
+            let dayToken, monthToken, yearToken;
+
+            if (/[A-Za-z]/.test(p1) || /[A-Za-z]/.test(p2) || /[A-Za-z]/.test(p3)) {
+                // Month is the token with letters
+                if (/[A-Za-z]/.test(p2)) {
+                    dayToken   = p1;
+                    monthToken = p2;
+                    yearToken  = p3;
+                } else if (/[A-Za-z]/.test(p1)) {
+                    monthToken = p1;
+                    dayToken   = p2;
+                    yearToken  = p3;
+                } else {
+                    dayToken   = p1;
+                    yearToken  = p2;
+                    monthToken = p3;
+                }
+            } else {
+                // Numeric only: treat as D-M-Y
+                dayToken   = p1;
+                monthToken = p2;
+                yearToken  = p3;
+            }
+
+            if (!dayToken || !monthToken || !yearToken) {
+                return val;
+            }
+
+            // 5) Normalize day
+            const day = dayToken.padStart(2, "0");
+
+            // 6) Normalize month (handle names like MAY or numeric)
+            const months = {
+                JAN: "01", FEB: "02", MAR: "03", APR: "04", MAY: "05", JUN: "06",
+                JUL: "07", AUG: "08", SEP: "09", OCT: "10", NOV: "11", DEC: "12"
+            };
+            const upperMon = monthToken.toUpperCase();
+            const month = (months[upperMon] || monthToken).padStart(2, "0");
+
+            // 7) Normalize year: convert YY to YYYY using simple pivot
+            let year = yearToken.trim();
+            if (year.length === 2) {
+                const yy = parseInt(year, 10);
+                if (!Number.isNaN(yy)) {
+                    year = ((yy >= 70 ? 1900 : 2000) + yy).toString();
+                }
+            }
+
+            // Now we have canonical pieces as strings: year, month, day
+            const pieces = { y: year, m: month, d: day };
+
+            // 8) Determine desired order from validationType suffix (e.g., 'mdy', 'dmy')
+            const underscoreIndex = validationType.indexOf("_");
+            let order = "ymd";
+            if (underscoreIndex !== -1) {
+                order = validationType.slice(underscoreIndex + 1).toLowerCase(); // e.g., mdy, dmy
+            }
+
+            // 9) Build date string in requested order using '-' as delimiter
+            const orderedParts = [];
+            for (const ch of order) {
+                if (pieces[ch]) {
+                    orderedParts.push(pieces[ch]);
+                }
+            }
+
+            // Fallback: if something went wrong, keep original value
+            if (orderedParts.length !== 3) {
+                return val;
+            }
+
+            const formattedDate = orderedParts.join("-");
+
+            // 10) Append default time if applicable
+            return timePart ? `${formattedDate} ${timePart}` : formattedDate;
+        },
+
+        convertYmdToFormat(ymd, format, delim) {
+            const parts = (ymd || "").split("-");
+            if (parts.length !== 3) return ymd;
+
+            const [Y, M, D] = parts;
+
+            switch ((format || "").toLowerCase()) {
+                case "mdy":
+                    return `${M}${delim}${D}${delim}${Y}`;
+                case "dmy":
+                    return `${D}${delim}${M}${delim}${Y}`;
+                case "ymd":
+                default:
+                    return `${Y}${delim}${M}${delim}${D}`;
+            }
+        },
 
         init() {
             //--------------------------------------
@@ -166,13 +295,44 @@
 
                     for (const key in attributeMap) {
                         if (results.hasOwnProperty(key)) {
-                            const inputName = attributeMap[key];
+                            const inputName = attributeMap[key]['field_name'];
 
                             const el = document.querySelector(
                                 `input[name="${inputName}"], textarea[name="${inputName}"], select[name="${inputName}"]`
                             );
 
-                            if (el) el.value = results[key];
+                            if (el) {
+                                const elementType = attributeMap[key]['element_type'];
+                                const validationType = attributeMap[key]['element_validation_type'] || '';
+                                let value = results[key];
+
+                                // --- YESNO FIELD (radio buttons) ---
+                                if (elementType === "yesno") {
+                                    // REDCap yesno radio values: 1 = Yes, 0 = No
+                                    const yesValue = (value === 'Y') ? "1" : "0";
+
+                                    const radios = document.querySelectorAll(
+                                        `input[type="radio"][name="${inputName}___radio"]`
+                                    );
+
+                                    radios.forEach(r => {
+                                        r.checked = (r.value === yesValue);
+                                    });
+
+                                } else {
+                                // --- DATE / DATETIME FIELDS (D/M/Y variants) ---
+                                const dateValidations = [
+                                    'date_dmy', 'date_mdy', 'date_ymd',
+                                    'datetime_dmy', 'datetime_mdy', 'datetime_ymd',
+                                    'datetime_seconds_dmy', 'datetime_seconds_mdy', 'datetime_seconds_ymd'
+                                ];
+
+                                if (dateValidations.includes(validationType) && typeof value === 'string') {
+                                    value = this.normalizeDdMonYy(value, validationType);
+                                }
+                                    el.value = value;
+                                }
+                            }
                         }
                     }
                 });
