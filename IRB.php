@@ -59,7 +59,7 @@ class IRB extends \ExternalModules\AbstractExternalModule
         $mapping = [];
         global $Proj;
         foreach ($eProtocolAttributes as $ind => $attribute) {
-            $mapping[$attribute] = $Proj->metadata[$attribute];
+            $mapping[$attribute] = $Proj->metadata[$redcapFields[$ind]];
         }
         return $mapping;
     }
