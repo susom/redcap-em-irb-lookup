@@ -283,9 +283,15 @@
         getAllIrbInformation(protocolNumber) {
             return this.ajax("getAllIrbInformation", { protocolNumber })
                 .then(results => {
+                    // --- Handle enforcement error (e.g., protocol not associated with current user) ---
+                    if (results && results.success === false && results.error) {
+                        this.renderErrorDropdown(results.error, this.irbEl);
+                        return;
+                    }
+
                     // --- Handle empty array response ---
                     if (Array.isArray(results) && results.length === 0) {
-                        this.renderErrorDropdown("No Results found", this.irbEl);   // <-- dropdown anchored to the IRB input
+                        this.renderErrorDropdown("No Results found", this.irbEl);
                         return;
                     }
 
@@ -295,6 +301,8 @@
 
                     for (const key in attributeMap) {
                         if (results.hasOwnProperty(key)) {
+                            console.log('key:', key);
+                            console.log(attributeMap)
                             const inputName = attributeMap[key]['field_name'];
 
                             const el = document.querySelector(
@@ -417,7 +425,7 @@
             this.dropdown.className = "list-group";
             this.dropdown.style.position = "absolute";
             this.dropdown.style.zIndex = "2000";
-            this.dropdown.style.width = this.inputEl.offsetWidth + "px";
+            this.dropdown.style.width = targetInput.offsetWidth + "px";
 
             const li = document.createElement("li");
             li.className = "list-group-item list-group-item-danger";

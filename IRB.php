@@ -68,43 +68,89 @@ class IRB extends \ExternalModules\AbstractExternalModule
                                        $survey_hash, $response_id, $survey_queue_hash, $page, $page_full, $user_id, $group_id)
     {
         try {
-            switch ($action) {
-                case "getIRBNumsBySunetID":
-                    $settings = $this->getprojectSettings($project_id);
-                    if($settings['enforce-sunet-irb-search'] === true) {
-                        if($user_id === USERID && $user_id === $payload['sunet']){
-                            $ret =  $this->getIRBNumsBySunetID($payload['sunet']);
-                            return array_merge(["data" => $ret, "success" => true]);
-                        } else {
-                            $this->emError("AJAX call $action SunetID does not match current user");
-                            return [
-                                "error" => "sunetID does not match current user",
-                                "success" => false
-                            ];
-
-                        }
-                    } else {
-                        if(empty($payload) || empty($payload['sunet'])) {
-                            $this->emError("AJAX call $action received null or empty sunetID");
-                            return [
-                                "error" => "AJAX call recieved null or empty SUNET",
-                                "success" => false
-                            ];
-                        }
-                        $ret = $this->getIRBNumsBySunetID($payload['sunet']);
-                        return array_merge(["data" =>$ret, "success" => true]);
-                    }
-
-                case "getAllIrbInformation":
-                    if(empty($payload) || empty($payload['protocolNumber'])) {
-                        $this->emError("AJAX call $action received null or empty protocol number");
-                        return false;
-                    }
-                    return $this->getAllIrbInformation($payload['protocolNumber']);
-            }
+            return match ($action) {
+                'getIRBNumsBySunetID'  => $this->handleGetIRBNumsBySunetID($payload, $project_id, $user_id),
+                'getAllIrbInformation'  => $this->handleGetAllIrbInformation($payload, $project_id, $user_id),
+                default => throw new Exception("Action '$action' is not defined"),
+            };
         } catch (Exception $ex) {
             $this->emError("Exception occurred during AJAX call $action: " . $ex);
+            return ["error" => $ex->getMessage(), "success" => false];
         }
+    }
+
+    /**
+     * Handles the getIRBNumsBySunetID AJAX action.
+     * When enforcement is enabled, validates that the requesting user matches the SUNet being queried.
+     *
+     * @param array  $payload    AJAX payload containing 'sunet'
+     * @param int    $project_id Current project ID
+     * @param string $user_id    Authenticated user ID
+     * @return array Response with 'data'/'success' or 'error'/'success'
+     */
+    private function handleGetIRBNumsBySunetID(array $payload, $project_id, string $user_id): array
+    {
+        $settings = $this->getProjectSettings($project_id);
+
+        // Enforcement mode: only allow users to query their own SUNet
+        if ($settings['enforce-sunet-irb-search'] === true) {
+            if ($user_id !== USERID || $user_id !== $payload['sunet']) {
+                $this->emError("AJAX call getIRBNumsBySunetID: SUNet does not match current user");
+                return ["error" => "SUNet ID does not match current user", "success" => false];
+            }
+            $ret = $this->getIRBNumsBySunetID($payload['sunet']);
+            return ["data" => $ret, "success" => true];
+        }
+
+        // Non-enforced mode: validate payload presence
+        if (empty($payload['sunet'])) {
+            $this->emError("AJAX call getIRBNumsBySunetID: received null or empty SUNet ID");
+            return ["error" => "AJAX call received null or empty SUNet", "success" => false];
+        }
+
+        $ret = $this->getIRBNumsBySunetID($payload['sunet']);
+        return ["data" => $ret, "success" => true];
+    }
+
+    /**
+     * Handles the getAllIrbInformation AJAX action.
+     * When enforcement is enabled, verifies the requested protocol belongs to the current user
+     * before returning full IRB details.
+     *
+     * @param array  $payload    AJAX payload containing 'protocolNumber'
+     * @param int    $project_id Current project ID
+     * @param string $user_id    Authenticated user ID
+     * @return array|false Response data or error
+     */
+    private function handleGetAllIrbInformation(array $payload, $project_id, string $user_id)
+    {
+        if (empty($payload['protocolNumber'])) {
+            $this->emError("AJAX call getAllIrbInformation: received null or empty protocol number");
+            return ["error" => "Protocol number is required", "success" => false];
+        }
+
+        $settings  = $this->getProjectSettings($project_id);
+        $protocol  = (string) $payload['protocolNumber'];
+
+        // Non-enforced mode: return IRB info directly
+        if ($settings['enforce-sunet-irb-search'] !== true) {
+            return $this->getAllIrbInformation($protocol);
+        }
+
+        // Enforcement mode: confirm the protocol is associated with the current user
+        $userProtocols = $this->getIRBNumsBySunetID($user_id);
+
+        if (!empty($userProtocols) && is_array($userProtocols)) {
+            foreach ($userProtocols as $entry) {
+                if (isset($entry['protocolNumber']) && (string) $entry['protocolNumber'] === $protocol) {
+                    return $this->getAllIrbInformation($protocol);
+                }
+            }
+        }
+
+        // Protocol not found among user's associated IRBs
+        $this->emError("AJAX call getAllIrbInformation: protocol {$protocol} not found for user $user_id");
+        return ["error" => "Protocol number not associated with current user", "success" => false];
     }
 
 
@@ -252,6 +298,9 @@ class IRB extends \ExternalModules\AbstractExternalModule
         }
     }
 
+    public function returnIRBToken(){
+        return $this->getIRBToken();
+    }
     /**
      * This function will return all IRB numbers that this sunetID is associated.
      *
