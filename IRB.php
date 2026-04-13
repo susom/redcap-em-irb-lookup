@@ -96,7 +96,7 @@ class IRB extends \ExternalModules\AbstractExternalModule
         if ($settings['enforce-sunet-irb-search'] === true) {
             if ($user_id !== USERID || $user_id !== $payload['sunet']) {
                 $this->emError("AJAX call getIRBNumsBySunetID: SUNet does not match current user");
-                return ["error" => "SUNet ID does not match current user", "success" => false];
+                return ["error" => "Provided SUNet ID does not match current user: $user_id", "success" => false];
             }
             $ret = $this->getIRBNumsBySunetID($payload['sunet']);
             return ["data" => $ret, "success" => true];
@@ -150,7 +150,7 @@ class IRB extends \ExternalModules\AbstractExternalModule
 
         // Protocol not found among user's associated IRBs
         $this->emError("AJAX call getAllIrbInformation: protocol {$protocol} not found for user $user_id");
-        return ["error" => "Protocol number not associated with current user", "success" => false];
+        return ["error" => "Protocol number not associated with current user: $user_id", "success" => false];
     }
 
 
