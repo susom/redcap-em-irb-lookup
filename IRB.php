@@ -92,22 +92,38 @@ class IRB extends \ExternalModules\AbstractExternalModule
     {
         $settings = $this->getProjectSettings($project_id);
 
-        // Enforcement mode: only allow users to query their own SUNet
-        if ($settings['enforce-sunet-irb-search'] === true) {
-            if ($user_id !== USERID || $user_id !== $payload['sunet']) {
-                $this->emError("AJAX call getIRBNumsBySunetID: SUNet does not match current user");
-                return ["error" => "Provided SUNet ID does not match current user: $user_id", "success" => false];
-            }
-            $ret = $this->getIRBNumsBySunetID($payload['sunet']);
-            return ["data" => $ret, "success" => true];
-        }
-
-        // Non-enforced mode: validate payload presence
+        // Guard: reject empty SUNet payload regardless of enforcement mode
         if (empty($payload['sunet'])) {
             $this->emError("AJAX call getIRBNumsBySunetID: received null or empty SUNet ID");
             return ["error" => "AJAX call received null or empty SUNet", "success" => false];
         }
 
+        // Enforcement mode: restrict queries to the authenticated user's own SUNet
+        if ($settings['enforce-sunet-irb-search'] === true) {
+            $user_id = 'jmschult@stanfordhealthcare.org';
+            // Block non-university affiliates (e.g., Stanford Children's, Stanford Health Care)
+            $nonAffiliatedDomains = ['@stanfordchildrens.org', '@stanfordhealthcare.org'];
+            foreach ($nonAffiliatedDomains as $domain) {
+                if (str_contains($user_id, $domain)) {
+                    $this->emError("AJAX call getIRBNumsBySunetID: user $user_id is not a University affiliate");
+                    return [
+                        "error"   => "Current logged-in user is not a University Affiliate — IRB lookup is only enabled for School of Medicine users",
+                        "success" => false
+                    ];
+                }
+            }
+
+            // Verify the queried SUNet matches the authenticated user
+            if ($payload['sunet'] !== $user_id) {
+                $this->emError("AJAX call getIRBNumsBySunetID: SUNet '{$payload['sunet']}' does not match current user '$user_id'");
+                return [
+                    "error"   => "SUNET lookup restrictions are currently enforced. Provided SUNet does not match current user: $user_id",
+                    "success" => false
+                ];
+            }
+        }
+
+        // Fetch and return protocols associated with the SUNet
         $ret = $this->getIRBNumsBySunetID($payload['sunet']);
         return ["data" => $ret, "success" => true];
     }
@@ -150,7 +166,7 @@ class IRB extends \ExternalModules\AbstractExternalModule
 
         // Protocol not found among user's associated IRBs
         $this->emError("AJAX call getAllIrbInformation: protocol {$protocol} not found for user $user_id");
-        return ["error" => "Protocol number not associated with current user: $user_id", "success" => false];
+        return ["error" => "SUNET lookup restrictions are currently enforced. Protocol number not associated with current user: $user_id", "success" => false];
     }
 
 
