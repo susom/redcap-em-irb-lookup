@@ -24,35 +24,35 @@ class IRB extends \ExternalModules\AbstractExternalModule
 
     function redcap_every_page_top($project_id)
     {
+        if (!in_array(PAGE, $this->allowedPages)) return;
 
-        // Do something on the Online Designer page
-        if (in_array(PAGE, $this->allowedPages))
-        {
-            $settings = $this->getProjectSettings($project_id);
+        $settings    = $this->getProjectSettings($project_id);
+        $sunetEnabled = !empty($settings['enable-sunet-irb-search']);
+        $irbEnabled   = !empty($settings['enable-irb-search']);
 
-            //Determine if we need to enable the SUNET IRB Search feature
-            if(!is_null($settings['enable-sunet-irb-search']) && $settings['enable-sunet-irb-search'] === true) {
-                $mapping = $this->generateFieldMapping($settings['eprotocol-attribute'], $settings['variable-name']);
-                $this->initializeJavascriptModuleObject();
-                echo "<script>ExternalModules.Stanford.IRB.attributeMap = " . json_encode($mapping) . ";</script>";
-                echo "<script>ExternalModules.Stanford.IRB.sunetField = " . json_encode($settings['sunet-id-field']) . ";</script>";
-                echo "<script>ExternalModules.Stanford.IRB.irbField = " . json_encode($settings['irb-field']) . ";</script>";
-                echo "<script src='" . $this->getUrl("js/sunetIRBSearch.js") . "'></script>";
-            }
-//            if(!is_null($settings['enable-irb-search']) && $settings['enable-irb-search'] === true) {
-//                $mapping = $this->generateFieldMapping($settings['eprotocol-attribute'], $settings['variable-name']);
-//                $this->initializeJavascriptModuleObject();
-//                echo "<script>ExternalModules.Stanford.IRB.attributeMap = " . json_encode($mapping) . ";</script>";
-//                echo "<script src='" . $this->getUrl("js/sunetIRBSearch.js") . "'></script>";
-//            }
+        // Nothing to inject if neither search mode is active
+        if (!$sunetEnabled && !$irbEnabled) return;
 
+        // --- Shared resources (attribute map + JS) needed by both modes ---
+        $mapping = $this->generateFieldMapping(
+            $settings['eprotocol-attribute'],
+            $settings['variable-name']
+        );
+        $this->initializeJavascriptModuleObject();
+        echo "<script>ExternalModules.Stanford.IRB.attributeMap = " . json_encode($mapping) . ";</script>";
+
+        // --- SUNet → IRB lookup: inject the SUNet field reference ---
+        if ($sunetEnabled) {
+            echo "<script>ExternalModules.Stanford.IRB.sunetField = " . json_encode($settings['sunet-id-field']) . ";</script>";
         }
 
-        // Do something on the File Repository page but only for a specific project
-        elseif ($project_id == 759 && PAGE == 'FileRepositoryController:index')
-        {
-            // ...
+        // --- Direct IRB number lookup: inject the IRB field reference ---
+        if ($irbEnabled) {
+            echo "<script>ExternalModules.Stanford.IRB.irbField = " . json_encode($settings['irb-field']) . ";</script>";
         }
+
+        // Load the search UI script (handles both modes based on which fields are set)
+        echo "<script src='" . $this->getUrl("js/sunetIRBSearch.js") . "'></script>";
     }
 
     public function generateFieldMapping($eProtocolAttributes, $redcapFields) {
@@ -340,7 +340,13 @@ class IRB extends \ExternalModules\AbstractExternalModule
 
         $header = array("Authorization: Bearer " . $token);
         $api_url = $this->getSystemSetting("irb_url_num") . $sunet_id;
+
+        // Timer: measure http_get latency for IRB-by-SUNet API
+        $startTime = microtime(true);
         $response = http_get($api_url, 10, "", $header);
+        $elapsed = round((microtime(true) - $startTime) * 1000, 2);
+        $this->emDebug("getIRBNumsBySunetID http_get for '$sunet_id' took {$elapsed}ms");
+
         if ($response == false) {
             $this->emError("Error calling IRB Validity API for user" . $sunet_id);
             return false;
@@ -453,7 +459,12 @@ class IRB extends \ExternalModules\AbstractExternalModule
 
         $header = array("Authorization: Bearer " . $token);
         $api_url = $this->getSystemSetting("irb_url_all_v2") . $irb_number;
+
+        // Timer: measure http_get latency for IRB-all-info v2 API
+        $startTime = microtime(true);
         $response = http_get($api_url, 10, "", $header);
+        $elapsed = round((microtime(true) - $startTime) * 1000, 2);
+        $this->emDebug("getAllIrbInformation http_get for '$irb_number' took {$elapsed}ms");
 
         if ($response == false) {
             $this->emError("Error calling IRB Validity API for user " . $irb_number);
