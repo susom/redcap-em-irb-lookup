@@ -142,23 +142,31 @@
         init() {
             //--------------------------------------
             // GET FIELD REFERENCES
+            // Each may be null if its feature is not enabled in EM settings
             //--------------------------------------
-            this.inputEl = document.querySelector(`input[name="${this.sunetField}"]`);
-            this.irbEl   = document.querySelector(`input[name="${this.irbField}"]`);
+            this.inputEl = this.sunetField
+                ? document.querySelector(`input[name="${this.sunetField}"]`)
+                : null;
+            this.irbEl = this.irbField
+                ? document.querySelector(`input[name="${this.irbField}"]`)
+                : null;
 
-            if (!this.inputEl) return;
-
-            //--------------------------------------
-            // CREATE SUNET SEARCH UI
-            //--------------------------------------
-            this.buildSearchUI({
-                input: this.inputEl,
-                buttonId: "irb-search-button",
-                onSearch: (val) => this.fetchIRBList(val)
-            });
+            // Nothing to do if neither field exists on this page
+            if (!this.inputEl && !this.irbEl) return;
 
             //--------------------------------------
-            // CREATE IRB NUMBER SEARCH UI
+            // CREATE SUNET SEARCH UI (if enabled)
+            //--------------------------------------
+            if (this.inputEl) {
+                this.buildSearchUI({
+                    input: this.inputEl,
+                    buttonId: "irb-search-button",
+                    onSearch: (val) => this.fetchIRBList(val)
+                });
+            }
+
+            //--------------------------------------
+            // CREATE IRB NUMBER SEARCH UI (if enabled)
             //--------------------------------------
             if (this.irbEl) {
                 this.buildSearchUI({
@@ -175,22 +183,31 @@
                 if (!this.dropdown) return;
 
                 const clickedInsideDropdown = this.dropdown.contains(event.target);
-                const clickedInput = this.inputEl === event.target;
+                const clickedOnSearchInput  = event.target === this.inputEl
+                                           || event.target === this.irbEl;
 
-                if (!clickedInsideDropdown && !clickedInput) {
+                if (!clickedInsideDropdown && !clickedOnSearchInput) {
                     this.removeDropdown();
                 }
             });
 
             //--------------------------------------
-            // REOPEN DROPDOWN
+            // REOPEN SUNET DROPDOWN ON FOCUS
             //--------------------------------------
-            this.inputEl.addEventListener("focus", () => {
-                if (this.dropdown) return;
-                if (this.lastResults && Array.isArray(this.lastResults)) {
-                    this.renderDropdown(this.lastResults);
-                }
-            });
+            if (this.inputEl) {
+                this.inputEl.addEventListener("focus", () => {
+                    if (this.dropdown) return;
+                    if (this.lastResults && Array.isArray(this.lastResults)) {
+                        this.renderDropdown(this.lastResults);
+                    }
+                });
+
+                // Clear cached results and dropdown when the input value changes
+                this.inputEl.addEventListener("input", () => {
+                    this.lastResults = null;
+                    this.removeDropdown();
+                });
+            }
         },
 
         //--------------------------------------
