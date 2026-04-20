@@ -100,7 +100,6 @@ class IRB extends \ExternalModules\AbstractExternalModule
 
         // Enforcement mode: restrict queries to the authenticated user's own SUNet
         if ($settings['enforce-sunet-irb-search'] === true) {
-            $user_id = 'jmschult@stanfordhealthcare.org';
             // Block non-university affiliates (e.g., Stanford Children's, Stanford Health Care)
             $nonAffiliatedDomains = ['@stanfordchildrens.org', '@stanfordhealthcare.org'];
             foreach ($nonAffiliatedDomains as $domain) {
