@@ -68,9 +68,15 @@ class IRB extends \ExternalModules\AbstractExternalModule
                                        $survey_hash, $response_id, $survey_queue_hash, $page, $page_full, $user_id, $group_id)
     {
         try {
+            // On survey pages $user_id is null; fall back to webauth_user passed from the client
+            $effective_user_id = $user_id;
+            if (empty($effective_user_id) && !empty($payload['survey_user_id'])) {
+                $effective_user_id = $payload['survey_user_id'];
+            }
+
             return match ($action) {
-                'getIRBNumsBySunetID'  => $this->handleGetIRBNumsBySunetID($payload, $project_id, $user_id),
-                'getAllIrbInformation'  => $this->handleGetAllIrbInformation($payload, $project_id, $user_id),
+                'getIRBNumsBySunetID'  => $this->handleGetIRBNumsBySunetID($payload, $project_id, $effective_user_id),
+                'getAllIrbInformation'  => $this->handleGetAllIrbInformation($payload, $project_id, $effective_user_id),
                 default => throw new Exception("Action '$action' is not defined"),
             };
         } catch (Exception $ex) {
@@ -85,10 +91,10 @@ class IRB extends \ExternalModules\AbstractExternalModule
      *
      * @param array  $payload    AJAX payload containing 'sunet'
      * @param int    $project_id Current project ID
-     * @param string $user_id    Authenticated user ID
+     * @param ?string $user_id    Authenticated user ID
      * @return array Response with 'data'/'success' or 'error'/'success'
      */
-    private function handleGetIRBNumsBySunetID(array $payload, $project_id, string $user_id): array
+    private function handleGetIRBNumsBySunetID(array $payload, $project_id, ?string $user_id): array
     {
         $settings = $this->getProjectSettings($project_id);
 
@@ -134,10 +140,10 @@ class IRB extends \ExternalModules\AbstractExternalModule
      *
      * @param array  $payload    AJAX payload containing 'protocolNumber'
      * @param int    $project_id Current project ID
-     * @param string $user_id    Authenticated user ID
+     * @param ?string $user_id    Authenticated user ID
      * @return array|false Response data or error
      */
-    private function handleGetAllIrbInformation(array $payload, $project_id, string $user_id)
+    private function handleGetAllIrbInformation(array $payload, $project_id, ?string $user_id)
     {
         if (empty($payload['protocolNumber'])) {
             $this->emError("AJAX call getAllIrbInformation: received null or empty protocol number");

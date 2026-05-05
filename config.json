@@ -137,7 +137,7 @@
     },
     {
       "key": "enforce-sunet-irb-search",
-      "name": "<b>Enforce SUNET ID to IRB Number Lookup</b><br>If enabled, the module will only return results for the currently logged-in user",
+      "name": "<b>Enforce SUNET ID to IRB Number Lookup</b><br>If enabled, the module will only return results for the currently logged-in user. This effects both searching protocol by SUNET and by IRB<br><em>NOTE: If the SUNET field is embedded on a public survey, the rejection popup will always show unless <strong>webauth_user</strong> exists in the DOM & is enabled on the survey</em>",
       "type": "checkbox",
       "required": true,
       "branchingLogic": {

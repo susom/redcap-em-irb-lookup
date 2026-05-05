@@ -3,6 +3,23 @@
     // Define module namespace
     const module = ExternalModules.Stanford.IRB = ExternalModules.Stanford.IRB || {};
 
+    /**
+     * Detect if the current page is a REDCap survey (URL contains /surveys/).
+     * @returns {boolean}
+     */
+    const isSurveyPage = () => /\/surveys\//.test(window.location.pathname);
+
+    /**
+     * On survey pages, resolve the authenticated user from the webauth_user field.
+     * Returns the field value if on a survey page and the field exists, otherwise null.
+     * @returns {string|null}
+     */
+    const getSurveyUserId = () => {
+        if (!isSurveyPage()) return null;
+        const el = document.querySelector('input[name="webauth_user"]');
+        return el ? el.value.trim() || null : null;
+    };
+
     Object.assign(module, {
         irbList: [],
         dropdown: null,
@@ -279,7 +296,12 @@
         // FETCH LIST OF IRBS BY SUNET
         //--------------------------------------
         fetchIRBList(sunet) {
-            return this.ajax("getIRBNumsBySunetID", { sunet })
+            // On survey pages, pass webauth_user as the user identity for enforcement
+            const payload = { sunet };
+            const surveyUser = getSurveyUserId();
+            if (surveyUser) payload.survey_user_id = surveyUser;
+
+            return this.ajax("getIRBNumsBySunetID", payload)
                 .then(results => {
                     if (!results?.success) {
                         this.lastResults = null;
@@ -298,7 +320,12 @@
         // FETCH FULL IRB DETAILS
         //--------------------------------------
         getAllIrbInformation(protocolNumber) {
-            return this.ajax("getAllIrbInformation", { protocolNumber })
+            // On survey pages, pass webauth_user as the user identity for enforcement
+            const payload = { protocolNumber };
+            const surveyUser = getSurveyUserId();
+            if (surveyUser) payload.survey_user_id = surveyUser;
+
+            return this.ajax("getAllIrbInformation", payload)
                 .then(results => {
                     // --- Handle enforcement error (e.g., protocol not associated with current user) ---
                     if (results && results.success === false && results.error) {
@@ -318,8 +345,6 @@
 
                     for (const key in attributeMap) {
                         if (results.hasOwnProperty(key)) {
-                            console.log('key:', key);
-                            console.log(attributeMap)
                             const inputName = attributeMap[key]['field_name'];
 
                             const el = document.querySelector(
