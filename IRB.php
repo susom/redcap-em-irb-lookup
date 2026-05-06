@@ -457,20 +457,6 @@ class IRB extends \ExternalModules\AbstractExternalModule
             $this->emDebug("Redcap user $irb_number is requesting status for IRBs");
         }
 
-        // Get a valid token
-//        try {
-//            $token = $this->getIRBToken();
-//        } catch (Exception $ex) {
-//            $this->emError("Exception occurred when retrieving IRB token: " . $ex);
-//        }
-//
-//        if ($token == false) {
-//            $this->emError("Cannot retrieve a valid IRB token when retrieving IRBs for user $irb_number");
-//            return false;
-//        }
-
-        //TEMP TOKEN GENERATION FOR DEV PURPOSES ONLY
-//        $token = 'REDACTED';
         $token = $this->getIRBToken();
 
         $header = array("Authorization: Bearer " . $token);
