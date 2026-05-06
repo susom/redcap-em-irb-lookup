@@ -9,6 +9,10 @@ require_once "emLoggerTrait.php";
 class IRB extends \ExternalModules\AbstractExternalModule
 {
 
+    private $allowedPages = [
+        'DataEntry/index.php',
+        'surveys/index.php'
+    ];
     use emLoggerTrait;
     private $dpa_prefix;
 
@@ -17,6 +21,170 @@ class IRB extends \ExternalModules\AbstractExternalModule
         parent::__construct();
         $this->dpa_prefix = 'DPA-';
     }
+
+    /**
+     * Restrict the "IRB Lookup Attributes" project link to super users only.
+     */
+    function redcap_module_link_check_display($project_id, $link)
+    {
+        if (str_contains($link['url'], 'page=pages%2Fattributes')) {
+            return SUPER_USER;
+        }
+        return true;
+    }
+
+    function redcap_every_page_top($project_id)
+    {
+        if (!in_array(PAGE, $this->allowedPages)) return;
+
+        $settings    = $this->getProjectSettings($project_id);
+        $sunetEnabled = !empty($settings['enable-sunet-irb-search']);
+        $irbEnabled   = !empty($settings['enable-irb-search']);
+
+        // Nothing to inject if neither search mode is active
+        if (!$sunetEnabled && !$irbEnabled) return;
+
+        // --- Shared resources (attribute map + JS) needed by both modes ---
+        $mapping = $this->generateFieldMapping(
+            $settings['eprotocol-attribute'],
+            $settings['variable-name']
+        );
+        $this->initializeJavascriptModuleObject();
+        echo "<script>ExternalModules.Stanford.IRB.attributeMap = " . json_encode($mapping) . ";</script>";
+
+        // --- SUNet → IRB lookup: inject the SUNet field reference ---
+        if ($sunetEnabled) {
+            echo "<script>ExternalModules.Stanford.IRB.sunetField = " . json_encode($settings['sunet-id-field']) . ";</script>";
+        }
+
+        // --- Direct IRB number lookup: inject the IRB field reference ---
+        if ($irbEnabled) {
+            echo "<script>ExternalModules.Stanford.IRB.irbField = " . json_encode($settings['irb-field']) . ";</script>";
+        }
+
+        // Load the search UI script (handles both modes based on which fields are set)
+        echo "<script src='" . $this->getUrl("js/sunetIRBSearch.js") . "'></script>";
+    }
+
+    public function generateFieldMapping($eProtocolAttributes, $redcapFields) {
+        $mapping = [];
+        global $Proj;
+        foreach ($eProtocolAttributes as $ind => $attribute) {
+            $mapping[$attribute] = $Proj->metadata[$redcapFields[$ind]];
+        }
+        return $mapping;
+    }
+
+    public function redcap_module_ajax($action, $payload, $project_id, $record, $instrument, $event_id, $repeat_instance,
+                                       $survey_hash, $response_id, $survey_queue_hash, $page, $page_full, $user_id, $group_id)
+    {
+        try {
+            // On survey pages $user_id is null; fall back to webauth_user passed from the client
+            $effective_user_id = $user_id;
+            if (empty($effective_user_id) && !empty($payload['survey_user_id'])) {
+                $effective_user_id = $payload['survey_user_id'];
+            }
+
+            return match ($action) {
+                'getIRBNumsBySunetID'  => $this->handleGetIRBNumsBySunetID($payload, $project_id, $effective_user_id),
+                'getAllIrbInformation'  => $this->handleGetAllIrbInformation($payload, $project_id, $effective_user_id),
+                default => throw new Exception("Action '$action' is not defined"),
+            };
+        } catch (Exception $ex) {
+            $this->emError("Exception occurred during AJAX call $action: " . $ex);
+            return ["error" => $ex->getMessage(), "success" => false];
+        }
+    }
+
+    /**
+     * Handles the getIRBNumsBySunetID AJAX action.
+     * When enforcement is enabled, validates that the requesting user matches the SUNet being queried.
+     *
+     * @param array  $payload    AJAX payload containing 'sunet'
+     * @param int    $project_id Current project ID
+     * @param ?string $user_id    Authenticated user ID
+     * @return array Response with 'data'/'success' or 'error'/'success'
+     */
+    private function handleGetIRBNumsBySunetID(array $payload, $project_id, ?string $user_id): array
+    {
+        $settings = $this->getProjectSettings($project_id);
+
+        // Guard: reject empty SUNet payload regardless of enforcement mode
+        if (empty($payload['sunet'])) {
+            $this->emError("AJAX call getIRBNumsBySunetID: received null or empty SUNet ID");
+            return ["error" => "AJAX call received null or empty SUNet", "success" => false];
+        }
+
+        // Enforcement mode: restrict queries to the authenticated user's own SUNet
+        if ($settings['enforce-sunet-irb-search'] === true) {
+            // Block non-university affiliates (e.g., Stanford Children's, Stanford Health Care)
+            $nonAffiliatedDomains = ['@stanfordchildrens.org', '@stanfordhealthcare.org'];
+            foreach ($nonAffiliatedDomains as $domain) {
+                if (str_contains($user_id, $domain)) {
+                    $this->emError("AJAX call getIRBNumsBySunetID: user $user_id is not a University affiliate");
+                    return [
+                        "error"   => "Current logged-in user is not a University Affiliate — IRB lookup is only enabled for School of Medicine users",
+                        "success" => false
+                    ];
+                }
+            }
+
+            // Verify the queried SUNet matches the authenticated user
+            if ($payload['sunet'] !== $user_id) {
+                $this->emError("AJAX call getIRBNumsBySunetID: SUNet '{$payload['sunet']}' does not match current user '$user_id'");
+                return [
+                    "error"   => "SUNET lookup restrictions are currently enforced. Provided SUNet does not match current user: $user_id",
+                    "success" => false
+                ];
+            }
+        }
+
+        // Fetch and return protocols associated with the SUNet
+        $ret = $this->getIRBNumsBySunetID($payload['sunet']);
+        return ["data" => $ret, "success" => true];
+    }
+
+    /**
+     * Handles the getAllIrbInformation AJAX action.
+     * When enforcement is enabled, verifies the requested protocol belongs to the current user
+     * before returning full IRB details.
+     *
+     * @param array  $payload    AJAX payload containing 'protocolNumber'
+     * @param int    $project_id Current project ID
+     * @param ?string $user_id    Authenticated user ID
+     * @return array|false Response data or error
+     */
+    private function handleGetAllIrbInformation(array $payload, $project_id, ?string $user_id)
+    {
+        if (empty($payload['protocolNumber'])) {
+            $this->emError("AJAX call getAllIrbInformation: received null or empty protocol number");
+            return ["error" => "Protocol number is required", "success" => false];
+        }
+
+        $settings  = $this->getProjectSettings($project_id);
+        $protocol  = (string) $payload['protocolNumber'];
+
+        // Non-enforced mode: return IRB info directly
+        if ($settings['enforce-sunet-irb-search'] !== true) {
+            return $this->getAllIrbInformation($protocol);
+        }
+
+        // Enforcement mode: confirm the protocol is associated with the current user
+        $userProtocols = $this->getIRBNumsBySunetID($user_id);
+
+        if (!empty($userProtocols) && is_array($userProtocols)) {
+            foreach ($userProtocols as $entry) {
+                if (isset($entry['protocolNumber']) && (string) $entry['protocolNumber'] === $protocol) {
+                    return $this->getAllIrbInformation($protocol);
+                }
+            }
+        }
+
+        // Protocol not found among user's associated IRBs
+        $this->emError("AJAX call getAllIrbInformation: protocol {$protocol} not found for user $user_id");
+        return ["error" => "SUNET lookup restrictions are currently enforced. Protocol number not associated with current user: $user_id", "success" => false];
+    }
+
 
     /**
      * This function validates an IRB number and returns true or false.
@@ -162,6 +330,9 @@ class IRB extends \ExternalModules\AbstractExternalModule
         }
     }
 
+    public function returnIRBToken(){
+        return $this->getIRBToken();
+    }
     /**
      * This function will return all IRB numbers that this sunetID is associated.
      *
@@ -185,7 +356,13 @@ class IRB extends \ExternalModules\AbstractExternalModule
 
         $header = array("Authorization: Bearer " . $token);
         $api_url = $this->getSystemSetting("irb_url_num") . $sunet_id;
+
+        // Timer: measure http_get latency for IRB-by-SUNet API
+        $startTime = microtime(true);
         $response = http_get($api_url, 10, "", $header);
+        $elapsed = round((microtime(true) - $startTime) * 1000, 2);
+        $this->emDebug("getIRBNumsBySunetID http_get for '$sunet_id' took {$elapsed}ms");
+
         if ($response == false) {
             $this->emError("Error calling IRB Validity API for user" . $sunet_id);
             return false;
@@ -271,7 +448,47 @@ class IRB extends \ExternalModules\AbstractExternalModule
 
     }
 
-    /**
+    public function getAllIrbInformation($irb_number) {
+        // If this user is null, there is nothing to retrieve
+        if (is_null($irb_number)) {
+            $this->emError("Status is being requested for Null user");
+            return false;
+        } else {
+            $this->emDebug("Redcap user $irb_number is requesting status for IRBs");
+        }
+
+        $token = $this->getIRBToken();
+
+        $header = array("Authorization: Bearer " . $token);
+        $api_url = $this->getSystemSetting("irb_url_all_v2") . $irb_number;
+
+        // Timer: measure http_get latency for IRB-all-info v2 API
+        $startTime = microtime(true);
+        $response = http_get($api_url, 10, "", $header);
+        $elapsed = round((microtime(true) - $startTime) * 1000, 2);
+        $this->emDebug("getAllIrbInformation http_get for '$irb_number' took {$elapsed}ms");
+
+        if ($response == false) {
+            $this->emError("Error calling IRB Validity API for user " . $irb_number);
+            return false;
+        } else {
+            $this->emDebug("Successfully retrieved IRB Status for user: " . $irb_number);
+            $jsonResponse = json_decode($response, true);
+//            $responseArray = $jsonResponse["protocols"];
+            if (!empty($jsonResponse['items']) && is_array($jsonResponse['items'])) {
+                // Reverse the array and iterate
+                foreach (array_reverse($jsonResponse['items']) as $item) {
+                    if (isset($item['form_status']) && $item['form_status'] === "APPROVED") {
+                        return $item;
+                    }
+                }
+            }
+            return [];
+        }
+    }
+
+
+        /**
      * This function will retrieve the full list of IRBs, DPAs and download exemptions associated with an sunet_id.
      * It offers a more complete list of IRBs than getIRBAllBySunetID because it returns IRBs for which the sunet_id
      * is not listed but has an associated DPA.
