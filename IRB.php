@@ -22,6 +22,17 @@ class IRB extends \ExternalModules\AbstractExternalModule
         $this->dpa_prefix = 'DPA-';
     }
 
+    /**
+     * Restrict the "IRB Lookup Attributes" project link to super users only.
+     */
+    function redcap_module_link_check_display($project_id, $link)
+    {
+        if (str_contains($link['url'], 'page=pages%2Fattributes')) {
+            return SUPER_USER;
+        }
+        return true;
+    }
+
     function redcap_every_page_top($project_id)
     {
         if (!in_array(PAGE, $this->allowedPages)) return;
